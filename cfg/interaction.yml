@@ -1,0 +1,7 @@
+school:
+  mu: 2
+  sigma: 3
+
+company:
+  mu: 4
+  sigma: 4
