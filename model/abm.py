@@ -518,9 +518,13 @@ def forward_simulator(param_values, abm, training_num_steps, devices):
     return predictions.unsqueeze(2)
 
 
-def build_simulator(devices, all_agents, all_interactions):
+def build_simulator(devices, all_agents, all_interactions, start_num_step: int = 0):
     """build simulator: ABM or ODE"""
-    params = {"num_steps": 5, "all_agents": all_agents, "all_interactions": all_interactions}
+    params = {
+        "num_steps": start_num_step,
+        "all_agents": all_agents,
+        "all_interactions": all_interactions,
+    }
     abm = GradABM(params, devices[0])
 
     return abm
