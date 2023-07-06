@@ -167,8 +167,8 @@ def lam(x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integ
     x_i and x_j are attributes from nodes for all edges in the graph
         note: x_j[:, 2].sum() will be higher than current infections because there are some nodes repeated
     """
-    S_A_s = SFSusceptibility[x_i[:, 0].long()]
-    A_s_i = SFInfector[x_j[:, 1].long()]
+    S_A_s = SFSusceptibility[x_i[:, 0].long()]  # age dependant
+    A_s_i = SFInfector[x_j[:, 1].long()]  # stage dependant
     B_n = edge_attr[1, :]
     integrals = torch.zeros_like(B_n)
     infected_idx = x_j[:, 2].bool()
@@ -287,6 +287,12 @@ class GradABM:
             # torch.tensor([0.1])
             .float().to(self.device)
         )
+        # Scale factor for a infector being asym, five stages:
+        # - SUSCEPTIBLE_VAR = 0
+        # - EXPOSED_VAR = 1  # exposed state
+        # - INFECTED_VAR = 2
+        # - RECOVERED_VAR = 3
+        # - MORTALITY_VAR = 4
         self.SFInfector = torch.tensor([0.0, 0.33, 0.72, 0.0, 0.0]).float().to(self.device)
         self.lam_gamma = {}
         self.lam_gamma["scale"] = 5.5

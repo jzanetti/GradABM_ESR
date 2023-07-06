@@ -34,7 +34,7 @@ param_model = create_param_model(device)
 print("Step 5: Creating loss function ...")
 loss_def = get_loss_func(param_model)
 
-num_epochs = 2000
+num_epochs = 3000
 epoch_losses = []
 for epi in range(num_epochs):
     epoch_loss = 0
@@ -56,9 +56,11 @@ for epi in range(num_epochs):
         loss_def["opt"].zero_grad(set_to_none=True)
         epoch_loss += torch.sqrt(loss.detach()).item()
 
-    print(epi, param_model.learnable_params)
-    epoch_losses.append(epoch_loss)
     # print(predictions)
+    print(epi, param_model.learnable_params)
+
+    epoch_losses.append(epoch_loss)
+    print(predictions)
 
 plot(epoch_losses)
 savefig("test.png")

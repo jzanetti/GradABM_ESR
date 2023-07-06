@@ -26,7 +26,7 @@ def create_param_model2(
 class LearnableParams(nn.Module):
     """doesn't use data signals"""
 
-    def __init__(self, device, param_min=[1.0, 0.001, 0.01], param_max=[8.0, 0.02, 1.0]):
+    def __init__(self, device, param_min=[1.0, 0.001, 30.0], param_max=[8.0, 50.0, 100.0]):
         # param: r0, mortality rate, initial_infections_percentage
         super().__init__()
         self.device = device
