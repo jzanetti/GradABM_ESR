@@ -1,24 +1,17 @@
 from copy import copy
 
-import numpy as np
-import pandas as pd
 import torch
+from matplotlib.pyplot import close, plot, savefig
 
-from model.abm import GradABM, build_simulator, forward_simulator, param_model_forward
-from model.clibnn import CalibNN
-from model.create_abm_inputs import (
-    create_agents,
-    create_metadata,
-    read_cases,
-    train_data_wrapper,
-)
+from model.abm import build_simulator, forward_simulator, param_model_forward
+from model.inputs import create_agents, train_data_wrapper
 from model.interaction import create_interactions
 from model.param_model import create_param_model
 from model.utils import get_loss_func
 
 device = torch.device("cpu")
 
-y_path = "data/data_y_short.csv"
+y_path = "data/target.csv"
 agent_path = "data/agents.csv"
 abm_cfg_path = "/home/zhangs/Github/GradABM/tests/model/params.yaml"
 interaction_cfg_path = "cfg/interaction.yml"
@@ -41,40 +34,32 @@ param_model = create_param_model(device)
 print("Step 5: Creating loss function ...")
 loss_def = get_loss_func(param_model)
 
-"""
-params = {
-    "seed": 6666,
-    "num_runs": 1,
-    "disease": "COVID",
-    "pred_week": "202021",
-    "joint": False,
-    "inference_only": False,
-    "noise_level": 0,
-    "state": "MA",
-    "county_id": "25001",
-    "model_name": "GradABM-learnable-params",  # "GradABM-time-varying", GradABM-learnable-params
-    "num_steps": 10,
-}
-"""
-params = {}
-
-CLIP = 10
-num_epochs = 10
-training_num_steps = 10
+num_epochs = 2000
+epoch_losses = []
 for epi in range(num_epochs):
     epoch_loss = 0
     for batch, y in enumerate(train_loader):
+        total_timesteps = y.shape[1]
+
         # construct abm for each forward pass
-        abm = build_simulator(copy(params), [device], abm_cfg_path, all_agents, all_interactions)
+        abm = build_simulator([device], all_agents, all_interactions)
 
         param_values = param_model_forward(param_model)
 
-        predictions = forward_simulator(param_values, abm, training_num_steps, [device])
+        predictions = forward_simulator(param_values, abm, total_timesteps, [device])
 
-        loss_weight = torch.ones((1, training_num_steps, 1)).to(device)
+        loss_weight = torch.ones((1, total_timesteps, 1)).to(device)
         loss = (loss_weight * loss_def["loss_func"](y, predictions)).mean()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(param_model.parameters(), CLIP)
+        torch.nn.utils.clip_grad_norm_(param_model.parameters(), 10.0)
         loss_def["opt"].step()
         loss_def["opt"].zero_grad(set_to_none=True)
         epoch_loss += torch.sqrt(loss.detach()).item()
+
+    print(epi, param_model.learnable_params)
+    epoch_losses.append(epoch_loss)
+    # print(predictions)
+
+plot(epoch_losses)
+savefig("test.png")
+close()

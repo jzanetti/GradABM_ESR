@@ -258,27 +258,7 @@ class InfectionNetwork(MessagePassing):
 # all_agents, all_interactions, num_steps, num_agents
 class GradABM:
     def __init__(self, params, device):
-        # params["param"]
-        # abm_params = f'Data/ABM_parameters/{county_id}_generated_params.yaml'
-        """
-        abm_params = params["abm_params"]
-
-        # Reading params
-        with open(abm_params, "r") as stream:
-            try:
-                abm_params = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print("Error in reading parameters file")
-                print(exc)
-        """
-
-        # params.update(abm_params)
         self.params = params
-        self.params = {}
-        for param_key in ["all_agents", "all_interactions", "num_steps"]:
-            self.params[param_key] = params[param_key]
-        params = None
-
         self.device = device
 
         # Getting agents
@@ -311,11 +291,6 @@ class GradABM:
         self.lam_gamma = {}
         self.lam_gamma["scale"] = 5.5
         self.lam_gamma["rate"] = 2.14
-
-        # self.B_n = {}
-        # self.B_n["household"] = 2
-        # self.B_n["occupation"] = 1
-        # self.B_n["school"] = 1  # 0.25
 
         self.lam_gamma_integrals = self._get_lam_gamma_integrals(
             **self.lam_gamma, t=self.params["num_steps"] + 10
@@ -416,7 +391,7 @@ class GradABM:
             "r0_value": param_t[0],
             "mortality_rate": param_t[1],
             "initial_infections_percentage": param_t[2],
-            "exposed_to_infected_time": 3,
+            "exposed_to_infected_time": 0,
             "infected_to_recovered_time": 5,
         }
 
@@ -543,11 +518,9 @@ def forward_simulator(param_values, abm, training_num_steps, devices):
     return predictions.unsqueeze(2)
 
 
-def build_simulator(params, devices, abm_cfg, all_agents, all_interactions):
+def build_simulator(devices, all_agents, all_interactions):
     """build simulator: ABM or ODE"""
-    params["num_steps"] = 5
-    params["all_agents"] = all_agents
-    params["all_interactions"] = all_interactions
+    params = {"num_steps": 5, "all_agents": all_agents, "all_interactions": all_interactions}
     abm = GradABM(params, devices[0])
 
     return abm
