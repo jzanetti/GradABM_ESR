@@ -158,7 +158,8 @@ class SEIRMProgression(DiseaseProgression):
         ).to(device)
         p = torch.hstack((prob_infected, 1 - prob_infected))
         cat_logits = torch.log(p + 1e-9)
-        agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
+        # agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
+        agents_stages = torch.tensor([0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]).to(device)
         return agents_stages
 
 
@@ -218,35 +219,6 @@ class InfectionNetwork(MessagePassing):
         self.SFInfector = SFInfector
         self.lam_gamma_integrals = lam_gamma_integrals
         self.device = device
-
-    def forward_sparse(self, data, r0_value_trainable):
-        x = data.x
-        edge_index = data.edge_index
-        edge_attr = data.edge_attr
-        t = data.t
-        # sparse adjacency matrix of inter-agent interactions
-        S_A_s = self.SFSusceptibility[x[:, 0].long()]
-        A_s_i = self.SFInfector[x[:, 1].long()]
-        integrals = torch.zeros_like(S_A_s)
-        infected_idx = x[:, 2].bool()
-        infected_times = t - x[infected_idx, 3]
-        integrals[infected_idx] = self.lam_gamma_integrals[
-            infected_times.long()
-        ]  #:,2 is infected index and :,3 is infected time
-        I_bar = x[:, 4 + 22]  # only info for random network being used in current expts
-        integral_asi = A_s_i * integrals
-        sparse_adj = torch.sparse_coo_tensor(
-            [edge_index[0, :].tolist(), edge_index[1, :].tolist()],
-            torch.ones(edge_index.shape[1]).tolist(),
-            (x.shape[0], x.shape[0]),
-        ).to(self.device)
-        sparse_asi = integral_asi.view(-1, 1).to_sparse().to(self.device)
-        sparse_mult = torch.sparse.mm(sparse_adj, sparse_asi)
-        dense_mult = sparse_mult.to_dense().view(-1)
-
-        # total infection
-        infection_transmission = (r0_value_trainable * S_A_s * dense_mult) / I_bar  # /I_bar
-        return infection_transmission.view(1, -1)
 
     def forward(self, data, r0_value_trainable):
         x = data.x
@@ -368,7 +340,7 @@ class GradABM:
         # construct dictionary with trainable parameters
         learnable_params = {
             "r0_value": param_t[0],
-            "mortality_rate": param_t[1],
+            "mortality_rate": param_t[1] * param_t[5 + t],
             "initial_infections_percentage": param_t[2],
             "exposed_to_infected_time": param_t[3],  # 0,
             "infected_to_recovered_time": param_t[4],  # 3,
@@ -415,9 +387,10 @@ class GradABM:
         prob_not_infected = torch.exp(-lam_t)
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
-        potentially_exposed_today = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[
-            :, 0
-        ]  # first column is prob of infections
+        # potentially_exposed_today = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[
+        #    :, 0
+        # ]  # first column is prob of infections
+        potentially_exposed_today = p[:, 0]
         newly_exposed_today = self.DPM.get_newly_exposed(
             self.current_stages, potentially_exposed_today
         )

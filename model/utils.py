@@ -1,6 +1,17 @@
 import os
 
 import torch
+import torch.nn.functional as F
+
+
+class NegativeCosineSimilarityLoss(torch.nn.Module):
+    def __init__(self):
+        super(NegativeCosineSimilarityLoss, self).__init__()
+
+    def forward(self, input1, input2):
+        similarity = F.cosine_similarity(input1, input2, dim=1)
+        loss = 1 - similarity.mean()
+        return loss
 
 
 def get_loss_func(param_model, lr: float = 0.0001, weight_decay: float = 0.01):
@@ -18,7 +29,9 @@ def get_loss_func(param_model, lr: float = 0.0001, weight_decay: float = 0.01):
         filter(lambda p: p.requires_grad, param_model.parameters()),
         lr=lr,
         weight_decay=weight_decay,
-    )
+    )  # loss_fn = NegativeCosineSimilarityLoss()
+    loss_fn = torch.nn.MSELoss(reduction="none")
+    # loss_fn = NegativeCosineSimilarityLoss()
     return {"loss_func": torch.nn.MSELoss(reduction="none"), "opt": opt}
 
 

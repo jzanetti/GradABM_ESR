@@ -37,7 +37,10 @@ class LearnableParams(nn.Module):
         super().__init__()
         self.device = device
         # self.learnable_params = nn.Parameter(torch_rand(len(param_min), device=self.device))
-        self.learnable_params = nn.Parameter(torch_rand(num_vars, device=self.device))
+        total_t = 15
+        self.learnable_params = nn.Parameter(torch_rand(num_vars + total_t, device=self.device))
+        param_min.extend([0.0] * total_t)
+        param_max.extend([1.5] * total_t)
         self.min_values = torch_tensor(param_min, device=self.device)
         self.max_values = torch_tensor(param_max, device=self.device)
         self.sigmoid = nn.Sigmoid()
