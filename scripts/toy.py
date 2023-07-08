@@ -34,7 +34,7 @@ param_model = create_param_model(device)
 print("Step 5: Creating loss function ...")
 loss_def = get_loss_func(param_model)
 
-num_epochs = 3000
+num_epochs = 999
 epoch_losses = []
 for epi in range(num_epochs):
     epoch_loss = 0

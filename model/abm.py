@@ -112,7 +112,7 @@ class SEIRMProgression(DiseaseProgression):
         t,
     ):
         """get recovered (not longer infectious) + targets"""
-        mortality_rate = learnable_params["mortality_rate"]
+        mortality_rate = learnable_params["mortality_rate"] / 100.0
         new_death_recovered_today = (
             current_stages * (current_stages == self.INFECTED_VAR) * (agents_next_stage_times <= t)
         ) / self.INFECTED_VAR  # agents when stage changes
@@ -180,9 +180,29 @@ def lam(x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integ
     edge_network_numbers = edge_attr[
         0, :
     ]  # to account for the fact that mean interactions start at 4th position of x
-    I_bar = torch.gather(x_i[:, 4:27], 1, edge_network_numbers.view(-1, 1).long()).view(
-        -1
-    )  # to account for the fact that mean interactions start at 4th position of x
+    I_bar = torch.gather(x_i[:, 4:27], 1, edge_network_numbers.view(-1, 1).long()).view(-1)
+    # to account for the fact that mean interactions start at 4th position of x. how we can explain the above ?
+    # let's assume that:
+    # x_i =
+    #   1   2   3   4
+    #   1   2   3   4
+    #   1   2   3   4
+    # edge_network_numbers = [2, 0, 3], so edge_network_numbers.view(-1, 1).long() =
+    #    2
+    #    0
+    #    3
+    # torch.gather(input, dim, index) is a function that gathers elements from input tensor
+    # along the specified dim using the indices provided in the index tensor.
+    # In our case, x is the input tensor, 1 is the dimension along which we want to gather elements (columns),
+    # and edge_network_numbers.view(-1, 1).long() are the indices specifying which elements to gather.
+    # In our example, this step gathers the elements from x using the indices [2, 0, 3] along the columns dimension (dim=1):
+    # So we have:
+    # 3   1   4
+    # 1   1   4
+    # 3   1   4
+    # And then .view(-1) reshapes the tensor into a 1-dimensional tensor, e.g.,
+    # 3   1   4   1   1   4   3   1   4
+
     res = R * S_A_s * A_s_i * B_n * integrals / I_bar  # Edge attribute 1 is B_n
 
     return res.view(-1, 1)
@@ -272,8 +292,10 @@ class GradABM:
 
         # Getting interaction:
         all_interactions = self.params["all_interactions"]
-        self.agents_mean_interactions = all_interactions["agents_mean_interactions"]
-        self.agents_mean_interactions_split = all_interactions["agents_mean_interactions_split"]
+        self.agents_mean_interactions_mu = all_interactions["agents_mean_interactions_mu"]
+        self.agents_mean_interactions_mu_split = all_interactions[
+            "agents_mean_interactions_mu_split"
+        ]
         self.network_type_dict_inv = all_interactions["network_type_dict_inv"]
         self.network_type_dict = all_interactions["network_type_dict"]
 
@@ -295,6 +317,8 @@ class GradABM:
         # - MORTALITY_VAR = 4
         self.SFInfector = torch.tensor([0.0, 0.33, 0.72, 0.0, 0.0]).float().to(self.device)
         self.lam_gamma = {}
+        # mean of the gamma function =scale^2/rate^2
+        # width of the gamma function = rate^2/scale
         self.lam_gamma["scale"] = 5.5
         self.lam_gamma["rate"] = 2.14
 
@@ -314,49 +338,6 @@ class GradABM:
         self.current_time = 0
         self.all_edgelist = all_interactions["all_edgelist"]
         self.all_edgeattr = all_interactions["all_edgeattr"]
-
-        # **********************************************************************************
-        # self.all_edgelist, self.all_edgeattr = self.init_interaction_graph(
-        #    t=0, interaction_graph_cfg_path=params["interaction_graph_cfg_path"]
-        # )  # get one initial interaction graph
-
-    def init_interaction_graph99999(self, t, interaction_graph_cfg_path):
-        """this is Part-1 of Step"""
-
-        # infile = os.path.join(get_dir_from_path_list(
-        #    [self.params['output_location']['parent_dir'],
-        #        self.params['output_location']['networks_dir'],
-        #        self.params['output_location']['random_networks_dir']]
-        #        ), '{}.csv'.format(t))
-
-        infile = interaction_graph_cfg_path
-        random_network_edgelist_forward = (
-            torch.tensor(pd.read_csv(infile, header=None).to_numpy()).t().long()
-        )
-        random_network_edgelist_backward = torch.vstack(
-            (random_network_edgelist_forward[1, :], random_network_edgelist_forward[0, :])
-        )
-        random_network_edgelist = torch.hstack(
-            (random_network_edgelist_forward, random_network_edgelist_backward)
-        )
-        random_network_edgeattr_type = (
-            torch.ones(random_network_edgelist.shape[1]).long() * self.network_type_dict["school"]
-        )
-
-        random_network_edgeattr_B_n = (
-            torch.ones(random_network_edgelist.shape[1]).float() * self.B_n["school"]
-        )
-        random_network_edgeattr = torch.vstack(
-            (random_network_edgeattr_type, random_network_edgeattr_B_n)
-        )
-
-        all_edgelist = torch.hstack((random_network_edgelist,))
-        all_edgeattr = torch.hstack((random_network_edgeattr,))
-
-        all_edgelist = all_edgelist.to(self.device)
-        all_edgeattr = all_edgeattr.to(self.device)
-
-        return all_edgelist, all_edgeattr
 
     def get_interaction_graph(self, t):
         return self.all_edgelist, self.all_edgeattr
@@ -398,7 +379,7 @@ class GradABM:
             "mortality_rate": param_t[1],
             "initial_infections_percentage": param_t[2],
             "exposed_to_infected_time": 0,
-            "infected_to_recovered_time": 5,
+            "infected_to_recovered_time": 3,
         }
 
         """ change params that were set in constructor """
@@ -422,7 +403,7 @@ class GradABM:
                 self.current_stages.detach(),  # 1
                 self.agents_infected_index.to(self.device),  # 2
                 self.agents_infected_time.to(self.device),  # 3
-                *self.agents_mean_interactions_split,  # 4 to 26
+                *self.agents_mean_interactions_mu_split,  # 4 to 26
                 torch.arange(self.params["num_agents"]).to(self.device),  # Agent ids (27)
             )
         ).t()
@@ -431,7 +412,7 @@ class GradABM:
             edge_index=all_edgelist,
             edge_attr=all_edgeattr,
             t=t,
-            agents_mean_interactions=self.agents_mean_interactions,
+            agents_mean_interactions=self.agents_mean_interactions_mu,
         )
 
         # ******************************************************************************** #
@@ -515,6 +496,8 @@ def forward_simulator(param_values, abm, training_num_steps, devices):
     predictions = []
     for time_step in range(training_num_steps):
         model_device = abm.device
+        if time_step == 5:
+            x = 3
         _, pred_t = abm.step(time_step, param_values.to(model_device))
         pred_t = pred_t.type(torch.float64)
         predictions.append(pred_t.to(devices[0]))

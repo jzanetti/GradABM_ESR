@@ -1,7 +1,7 @@
 school:
   mu: 2
-  sigma: 3
+  bn: 0.25
 
-company:
+household:
   mu: 4
-  sigma: 4
+  bn: 2.0
