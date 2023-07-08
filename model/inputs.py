@@ -12,6 +12,18 @@ from yaml import safe_load as yaml_load
 from model.utils import SeqData
 
 
+def read_infection_cfg(infection_cfg_path: str):
+    """Read infection configuration
+
+    Args:
+        infection_cfg_path (str): Infection configuration path
+    """
+    with open(infection_cfg_path, "r") as fid:
+        cfg = yaml_load(fid)
+
+    return cfg
+
+
 def train_data_wrapper(
     y_path,
     batch_size: int = 1,

@@ -26,11 +26,18 @@ def create_param_model2(
 class LearnableParams(nn.Module):
     """doesn't use data signals"""
 
-    def __init__(self, device, param_min=[1.0, 0.001, 30.0], param_max=[8.0, 50.0, 100.0]):
-        # param: r0, mortality rate, initial_infections_percentage
+    def __init__(
+        self,
+        device,
+        param_min=[1.0, 0.001, 30.0, 0, 1],
+        param_max=[100.0, 50.0, 100.0, 10, 15],
+        num_vars=5,
+    ):
+        # param: r0, mortality rate, initial_infections_percentage, [exposed_to_infected_time, infected_to_recovered_time]
         super().__init__()
         self.device = device
-        self.learnable_params = nn.Parameter(torch_rand(len(param_min), device=self.device))
+        # self.learnable_params = nn.Parameter(torch_rand(len(param_min), device=self.device))
+        self.learnable_params = nn.Parameter(torch_rand(num_vars, device=self.device))
         self.min_values = torch_tensor(param_min, device=self.device)
         self.max_values = torch_tensor(param_max, device=self.device)
         self.sigmoid = nn.Sigmoid()

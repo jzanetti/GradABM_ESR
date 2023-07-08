@@ -50,7 +50,7 @@ class SEIRMProgression(DiseaseProgression):
         self.EXPOSED_TO_INFECTED_TIME = 3
         self.INFECTED_TO_RECOVERED_TIME = 5
         # inf time
-        self.INFINITY_TIME = params["num_steps"] + 1
+        # self.INFINITY_TIME = params["num_steps"] + 1
         self.num_agents = params["num_agents"]
 
     def initialize_variables(self, agents_infected_time, agents_stages, agents_next_stage_times):
@@ -93,7 +93,7 @@ class SEIRMProgression(DiseaseProgression):
         curr_stages = torch.clone(current_stages).long()
         new_transition_times[
             (curr_stages == self.INFECTED_VAR) * (agents_next_stage_times == t)
-        ] = self.INFINITY_TIME
+        ] = 1  # self.INFINITY_TIME
         new_transition_times[
             (curr_stages == self.EXPOSED_VAR) * (agents_next_stage_times == t)
         ] = (t + infected_to_recovered_time)
@@ -211,10 +211,9 @@ def lam(x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integ
 class InfectionNetwork(MessagePassing):
     """Contact network with graph message passing function for disease spread"""
 
-    def __init__(self, lam, R, SFSusceptibility, SFInfector, lam_gamma_integrals, device):
+    def __init__(self, lam, SFSusceptibility, SFInfector, lam_gamma_integrals, device):
         super(InfectionNetwork, self).__init__(aggr="add")
         self.lam = lam
-        self.R = R
         self.SFSusceptibility = SFSusceptibility
         self.SFInfector = SFInfector
         self.lam_gamma_integrals = lam_gamma_integrals
@@ -301,11 +300,8 @@ class GradABM:
 
         self.DPM = SEIRMProgression(self.params)
 
-        self.R = 5.18  # learnable, but the default value
-        self.R = torch.tensor(self.R).to(self.device)
-
         self.SFSusceptibility = (
-            torch.tensor([0.35, 0.69, 1.03, 1.03, 1.03, 1.03, 1.27, 1.52, 1.52])
+            torch.tensor(self.params["infection_cfg"]["scaling_factor"]["age_dependant"])
             # torch.tensor([0.1])
             .float().to(self.device)
         )
@@ -315,20 +311,20 @@ class GradABM:
         # - INFECTED_VAR = 2
         # - RECOVERED_VAR = 3
         # - MORTALITY_VAR = 4
-        self.SFInfector = torch.tensor([0.0, 0.33, 0.72, 0.0, 0.0]).float().to(self.device)
-        self.lam_gamma = {}
-        # mean of the gamma function =scale^2/rate^2
-        # width of the gamma function = rate^2/scale
-        self.lam_gamma["scale"] = 5.5
-        self.lam_gamma["rate"] = 2.14
+        self.SFInfector = (
+            torch.tensor(self.params["infection_cfg"]["scaling_factor"]["symptom_dependant"])
+            .float()
+            .to(self.device)
+        )
 
         self.lam_gamma_integrals = self._get_lam_gamma_integrals(
-            **self.lam_gamma, t=self.params["num_steps"] + 10
+            self.params["infection_cfg"]["gamma_func"]["a"],
+            self.params["infection_cfg"]["gamma_func"]["b"],
+            int(self.params["infection_cfg"]["total_infection_days"]),
         )  # add 10 to make sure we cover all
         self.lam_gamma_integrals = self.lam_gamma_integrals.to(self.device)
         self.net = InfectionNetwork(
             lam,
-            self.R,
             self.SFSusceptibility,
             self.SFInfector,
             self.lam_gamma_integrals,
@@ -350,17 +346,13 @@ class GradABM:
         # c.Infection and Disease
         self.current_stages = self.DPM.init_stages(learnable_params, self.device)
         self.agents_infected_index = (self.current_stages > 0).to(self.device)  # Not susceptible
-        self.agents_infected_time = (
-            (self.params["num_steps"] + 1) * torch.ones_like(self.current_stages)
-        ).to(
+        self.agents_infected_time = torch.ones_like(self.current_stages).to(
             self.device
         )  # Practically infinite as np.inf gives wrong data type
 
         self.agents_next_stages = -1 * torch.ones_like(self.current_stages).to(self.device)
-        self.agents_next_stage_times = (self.params["num_steps"] + 1) * torch.ones_like(
-            self.current_stages
-        ).long().to(
-            self.device
+        self.agents_next_stage_times = (
+            torch.ones_like(self.current_stages).long().to(self.device)
         )  # Practically infinite as np.inf gives wrong data type
 
         # update values depending on the disease
@@ -378,8 +370,8 @@ class GradABM:
             "r0_value": param_t[0],
             "mortality_rate": param_t[1],
             "initial_infections_percentage": param_t[2],
-            "exposed_to_infected_time": 0,
-            "infected_to_recovered_time": 3,
+            "exposed_to_infected_time": param_t[3],  # 0,
+            "infected_to_recovered_time": param_t[4],  # 3,
         }
 
         """ change params that were set in constructor """
@@ -475,9 +467,7 @@ class GradABM:
         self.current_time += 1
         return target1, target2
 
-    def _get_lam_gamma_integrals(self, scale, rate, t):
-        b = rate * rate / scale
-        a = scale / b  # / b
+    def _get_lam_gamma_integrals(self, a, b, t):
         res = [
             (gamma.cdf(t_i, a=a, loc=0, scale=b) - gamma.cdf(t_i - 1, a=a, loc=0, scale=b))
             for t_i in range(t)
@@ -496,8 +486,6 @@ def forward_simulator(param_values, abm, training_num_steps, devices):
     predictions = []
     for time_step in range(training_num_steps):
         model_device = abm.device
-        if time_step == 5:
-            x = 3
         _, pred_t = abm.step(time_step, param_values.to(model_device))
         pred_t = pred_t.type(torch.float64)
         predictions.append(pred_t.to(devices[0]))
@@ -507,12 +495,15 @@ def forward_simulator(param_values, abm, training_num_steps, devices):
     return predictions.unsqueeze(2)
 
 
-def build_simulator(devices, all_agents, all_interactions, start_num_step: int = 0):
+def build_simulator(
+    devices, all_agents, all_interactions, infection_cfg: dict, start_num_step: int = 0
+):
     """build simulator: ABM or ODE"""
     params = {
-        "num_steps": start_num_step,
+        # "num_steps": start_num_step,
         "all_agents": all_agents,
         "all_interactions": all_interactions,
+        "infection_cfg": infection_cfg,
     }
     abm = GradABM(params, devices[0])
 
