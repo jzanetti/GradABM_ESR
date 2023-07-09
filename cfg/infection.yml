@@ -21,4 +21,4 @@ gamma_func:
   a: 1.5
   b: 0.5
 
-total_infection_days: 10
+total_infection_days: 20

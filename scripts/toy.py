@@ -38,17 +38,19 @@ param_model = create_param_model(device)
 
 
 print("Step 5: Creating loss function ...")
-loss_def = get_loss_func(param_model, lr=0.001)
+loss_def = get_loss_func(param_model, lr=0.001, opt_method="adam")  # adam or sgd
 
-num_epochs = 1000
+num_epochs = 3000
 epoch_losses = []
+
+abm = build_simulator([device], all_agents, all_interactions, infection_cfg)
+
+
 for epi in range(num_epochs):
     epoch_loss = 0
     for batch, y in enumerate(train_loader):
         total_timesteps = y.shape[1]
         param_values = param_model_forward(param_model)
-
-        abm = build_simulator([device], all_agents, all_interactions, infection_cfg)
 
         predictions = forward_simulator(param_values, abm, total_timesteps, [device])
 
@@ -56,12 +58,14 @@ for epi in range(num_epochs):
         loss = (loss_weight * loss_def["loss_func"](y, predictions)).mean()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(param_model.parameters(), 10.0)
+        # for param in param_model.parameters():
+        #    print(type(param), param.grad, param.size())
         loss_def["opt"].step()
         loss_def["opt"].zero_grad(set_to_none=True)
         epoch_loss += torch.sqrt(loss.detach()).item()
 
     # print(param_values)
-    print(epi, epoch_loss)
+    print(f"{epi}: {epoch_loss}, {param_values}")
     epoch_losses.append(epoch_loss)
 
 print(predictions)

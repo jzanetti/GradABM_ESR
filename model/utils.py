@@ -14,7 +14,9 @@ class NegativeCosineSimilarityLoss(torch.nn.Module):
         return loss
 
 
-def get_loss_func(param_model, lr: float = 0.0001, weight_decay: float = 0.01):
+def get_loss_func(
+    param_model, lr: float = 0.0001, weight_decay: float = 0.0, opt_method: str = "adam"
+):
     """Obtain loss function
 
     Args:
@@ -25,13 +27,22 @@ def get_loss_func(param_model, lr: float = 0.0001, weight_decay: float = 0.01):
     Returns:
         _type_: _description_
     """
-    opt = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, param_model.parameters()),
-        lr=lr,
-        weight_decay=weight_decay,
-    )  # loss_fn = NegativeCosineSimilarityLoss()
-    loss_fn = torch.nn.MSELoss(reduction="none")
-    # loss_fn = NegativeCosineSimilarityLoss()
+    if opt_method == "adam":
+        opt = torch.optim.Adam(
+            filter(lambda p: p.requires_grad, param_model.parameters()),
+            lr=lr,
+            weight_decay=weight_decay,
+            differentiable=False,
+        )  # loss_fn = NegativeCosineSimilarityLoss()
+
+    elif opt_method == "sgd":
+        opt = torch.optim.SGD(
+            filter(lambda p: p.requires_grad, param_model.parameters()),
+            lr=lr,
+            weight_decay=weight_decay,
+            differentiable=False,
+        )
+
     return {"loss_func": torch.nn.MSELoss(reduction="none"), "opt": opt}
 
 

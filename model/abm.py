@@ -53,7 +53,7 @@ class SEIRMProgression(DiseaseProgression):
         # self.INFINITY_TIME = params["num_steps"] + 1
         self.num_agents = params["num_agents"]
 
-    def initialize_variables(self, agents_infected_time, agents_stages, agents_next_stage_times):
+    def initialize_variables(self, agents_infected_time, agents_stages):
         """initialize tensor variables depending on disease"""
         # agents in I have been at least a few days infected as they have been previously in exposed
         # assumption that agents in E have been infected 1 day, and agents in I have been infected EXPOSED_TO_INFECTED_TIME days
@@ -61,12 +61,8 @@ class SEIRMProgression(DiseaseProgression):
         agents_infected_time[agents_stages == self.INFECTED_VAR] = (
             -1 * self.EXPOSED_TO_INFECTED_TIME
         )
-        agents_next_stage_times[agents_stages == self.EXPOSED_VAR] = self.EXPOSED_TO_INFECTED_TIME
-        agents_next_stage_times[
-            agents_stages == self.INFECTED_VAR
-        ] = self.INFECTED_TO_RECOVERED_TIME
 
-        return agents_infected_time, agents_next_stage_times
+        return agents_infected_time
 
     def update_initial_times(self, learnable_params, agents_stages, agents_next_stage_times):
         """this is for the abm constructor"""
@@ -113,11 +109,19 @@ class SEIRMProgression(DiseaseProgression):
     ):
         """get recovered (not longer infectious) + targets"""
         mortality_rate = learnable_params["mortality_rate"] / 100.0
+
+        # new_death_recovered_today = []
+        # for i in range(len(current_stages)):
+        #    if current_stages[i] == self.INFECTED_VAR and agents_next_stage_times[i] <= t:
+        #        new_death_recovered_today.append(current_stages[i])
+        # new_death_recovered_today = sum(new_death_recovered_today) / self.INFECTED_VAR
+
         new_death_recovered_today = (
             current_stages * (current_stages == self.INFECTED_VAR) * (agents_next_stage_times <= t)
         ) / self.INFECTED_VAR  # agents when stage changes
-        # update for newly recovered agents {recovered now}
-        recovered_dead_now = new_death_recovered_today  # binary bit vector
+
+        recovered_dead_now = new_death_recovered_today
+
         NEW_DEATHS_TODAY = mortality_rate * new_death_recovered_today.sum()
         NEW_INFECTIONS_TODAY = newly_exposed_today.sum()
 
@@ -158,8 +162,8 @@ class SEIRMProgression(DiseaseProgression):
         ).to(device)
         p = torch.hstack((prob_infected, 1 - prob_infected))
         cat_logits = torch.log(p + 1e-9)
-        # agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
-        agents_stages = torch.tensor([0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]).to(device)
+        agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
+        # agents_stages = torch.tensor([0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]).to(device)
         return agents_stages
 
 
@@ -259,7 +263,6 @@ class GradABM:
 
         self.params["num_agents"] = len(agents_df)
         self.num_agents = self.params["num_agents"]
-        print("Num Agents: ", self.num_agents)
 
         # Getting interaction:
         all_interactions = self.params["all_interactions"]
@@ -322,15 +325,15 @@ class GradABM:
             self.device
         )  # Practically infinite as np.inf gives wrong data type
 
+        # update values depending on the disease
+        self.agents_infected_time = self.DPM.initialize_variables(
+            self.agents_infected_time, self.current_stages
+        )
+
         self.agents_next_stages = -1 * torch.ones_like(self.current_stages).to(self.device)
         self.agents_next_stage_times = (
             torch.ones_like(self.current_stages).long().to(self.device)
         )  # Practically infinite as np.inf gives wrong data type
-
-        # update values depending on the disease
-        self.agents_infected_time, self.agents_next_stage_times = self.DPM.initialize_variables(
-            self.agents_infected_time, self.current_stages, self.agents_next_stage_times
-        )
 
         self.agents_next_stage_times = self.agents_next_stage_times.float()
         self.agents_infected_time = self.agents_infected_time.float()
@@ -340,10 +343,13 @@ class GradABM:
         # construct dictionary with trainable parameters
         learnable_params = {
             "r0_value": param_t[0],
-            "mortality_rate": param_t[1] * param_t[5 + t],
+            "mortality_rate": param_t[1],
             "initial_infections_percentage": param_t[2],
-            "exposed_to_infected_time": param_t[3],  # 0,
-            "infected_to_recovered_time": param_t[4],  # 3,
+            "exposed_to_infected_time": param_t[3],
+            "infected_to_recovered_time": param_t[4],
+            "infection_gamma_pdf_loc": param_t[5],
+            "infection_gamma_pdf_a": param_t[6],
+            "infection_gamma_pdf_scale": param_t[7],
         }
 
         """ change params that were set in constructor """
@@ -383,14 +389,36 @@ class GradABM:
         # Part-2. Message Passing - Transmission Dynamics + New Infections: {GNN + Variational Inference}
         # agent steps: i) collects infection [GNN]; ii) get infected based on total infection collected [Variational Inference]
         # message passing: collecting infection from neighbors
+
+        res = [
+            (
+                gamma.cdf(
+                    t_i,
+                    a=learnable_params["infection_gamma_pdf_a"].item(),
+                    loc=0,
+                    scale=learnable_params["infection_gamma_pdf_scale"].item(),
+                )
+                - gamma.cdf(
+                    t_i - 1,
+                    a=learnable_params["infection_gamma_pdf_a"].item(),
+                    loc=0,
+                    scale=learnable_params["infection_gamma_pdf_scale"].item(),
+                )
+            )
+            for t_i in range(20)
+        ]
+
+        self.net.lam_gamma_integrals = torch.tensor(res).float().to(self.device)
+
+        # self.net.lam_gamma_integrals = torch.tensor([0.0]).float().to(self.device)
         lam_t = self.net(agents_data, learnable_params["r0_value"])
         prob_not_infected = torch.exp(-lam_t)
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
-        # potentially_exposed_today = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[
-        #    :, 0
-        # ]  # first column is prob of infections
-        potentially_exposed_today = p[:, 0]
+        potentially_exposed_today = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[
+            :, 0
+        ]  # first column is prob of infections
+        # potentially_exposed_today = p[:, 0]
         newly_exposed_today = self.DPM.get_newly_exposed(
             self.current_stages, potentially_exposed_today
         )
@@ -438,6 +466,7 @@ class GradABM:
 
         # reconcile and return values
         self.current_time += 1
+        # target2 = target2 + self.current_stages.sum()
         return target1, target2
 
     def _get_lam_gamma_integrals(self, a, b, t):
