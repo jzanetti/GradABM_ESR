@@ -15,9 +15,11 @@ class LearnableParams(nn.Module):
     def __init__(
         self,
         device,
-        param_min=[1.0, 0.01, 30.0, 0.0, 1.0, 0.0, 0.1, 0.1],
-        param_max=[100.0, 50.0, 100.0, 7.0, 14.0, 10.0, 15.0, 15.0],
-        num_vars=8,
+        # param_min=[1.0, 0.01, 0.0, 0.0, 1.0, 0.0, 0.1, 0.1],
+        # param_max=[100.0, 10.0, 50.0, 10.0, 15.0, 10.0, 1.5, 15.0],
+        param_min=[1.0, 0.01, 0.0, 0.0, 1.0],
+        param_max=[100.0, 10.0, 50.0, 10.0, 15.0],
+        num_vars=5,
     ):
         # param:
         # - r0 (overall infection rate): 0

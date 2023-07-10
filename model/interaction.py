@@ -1,4 +1,5 @@
 from pandas import read_csv as pandas_read_csv
+from pandas import to_numeric as pandas_to_numeric
 from torch import device as torch_device
 from torch import hstack as torch_hstack
 from torch import ones as torch_ones
@@ -87,6 +88,9 @@ def create_interactions(
     # Get edges interaction intensity
     # ----------------------------
     edges_mean_interaction_cfg = pandas_read_csv(interaction_graph_path, header=None)
+    # edges_mean_interaction_cfg = edges_mean_interaction_cfg.apply(
+    #    pandas_to_numeric, errors="coerce"
+    # ).values[1:,:].astype(int)
 
     agents_mean_interactions_bn = {}
     for network_name in network_type_dict:
@@ -124,9 +128,12 @@ def init_interaction_graph(
     Returns:
         _type_: _description_
     """
-    random_network_edgelist_forward = (
-        torch_tensor(interaction_graph_cfg.to_numpy()[:, 0:3]).t().long()
+
+    interaction_graph_cfg = (
+        interaction_graph_cfg.apply(pandas_to_numeric, errors="coerce").values[1:, :].astype(int)
     )
+
+    random_network_edgelist_forward = torch_tensor(interaction_graph_cfg[:, 0:3]).t().long()
     random_network_edgelist_backward = torch_vstack(
         (
             random_network_edgelist_forward[1, :],

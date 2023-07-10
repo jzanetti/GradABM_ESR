@@ -38,7 +38,7 @@ param_model = create_param_model(device)
 
 
 print("Step 5: Creating loss function ...")
-loss_def = get_loss_func(param_model, lr=0.001, opt_method="adam")  # adam or sgd
+loss_def = get_loss_func(param_model, lr=0.0001, opt_method="adam")  # adam or sgd
 
 num_epochs = 3000
 epoch_losses = []
@@ -57,7 +57,7 @@ for epi in range(num_epochs):
         loss_weight = torch.ones((1, total_timesteps, 1)).to(device)
         loss = (loss_weight * loss_def["loss_func"](y, predictions)).mean()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(param_model.parameters(), 10.0)
+        # torch.nn.utils.clip_grad_norm_(param_model.parameters(), 10.0)
         # for param in param_model.parameters():
         #    print(type(param), param.grad, param.size())
         loss_def["opt"].step()
@@ -66,10 +66,15 @@ for epi in range(num_epochs):
 
     # print(param_values)
     print(f"{epi}: {epoch_loss}, {param_values}")
+
+    if epi == 0:
+        param_values_first = param_values
+
     epoch_losses.append(epoch_loss)
 
 print(predictions)
 plot(epoch_losses)
-print(param_values)
+print(f"param_values_first: {param_values_first}")
+print(f"param_values: {param_values}")
 savefig("test.png")
 close()
