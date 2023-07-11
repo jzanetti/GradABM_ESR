@@ -12,9 +12,9 @@ learnable_params:
     default: 5
   initial_infected_percentage:
     enable: true
-    min: 10.0
-    max: 50.0
-    default: 25.0
+    min: 1.0
+    max: 5.0
+    default: 2.5
   exposed_to_infected_time:
     enable: true
     min: 1.0

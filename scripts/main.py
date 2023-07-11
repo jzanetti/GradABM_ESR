@@ -4,6 +4,7 @@ import torch
 from matplotlib.pyplot import close, plot, savefig
 
 from model.abm import build_simulator, forward_simulator, param_model_forward
+from model.diags import plot_diags
 from model.inputs import create_agents, read_infection_cfg, train_data_wrapper
 from model.interaction import create_interactions
 from model.param_model import create_param_model
@@ -58,8 +59,9 @@ abm = build_simulator([device], all_agents, all_interactions, infection_cfg)
 print("Step 7: Getting parameters ...")
 param_info = param_model.param_info()
 
-num_epochs = 100
-epoch_losses = []
+num_epochs = 1000
+epoch_loss_list = []
+param_values_list = []
 
 for epi in range(num_epochs):
     epoch_loss = 0
@@ -93,18 +95,11 @@ for epi in range(num_epochs):
     # print(param_values)
     print(f"{epi}: {epoch_loss}, {param_values}")
 
-    if epi == 0:
-        param_values_first = param_values
+    epoch_loss_list.append(epoch_loss)
+    param_values_list.append(param_values)
 
-    epoch_losses.append(epoch_loss)
 
-from numpy import count_nonzero
+plot_diags(predictions, epoch_loss_list)
 
-counts = count_nonzero(predictions["all_records"] == 1, axis=1)
-
-print(predictions)
-plot(epoch_losses)
-print(f"param_values_first: {param_values_first}")
-print(f"param_values: {param_values}")
 savefig("test.png")
 close()

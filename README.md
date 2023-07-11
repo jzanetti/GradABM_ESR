@@ -15,6 +15,8 @@ The learnable parameters include:
 - r (The scale factor for the overal infection rate)
 - mortality_rate
 - initial_infections_percentage
+- exposed_to_infected_time
+- infected_to_recovered_or_death_time
 
 Note that the data provided for the toy model is not sufficient to do any meaningful tunning.
 

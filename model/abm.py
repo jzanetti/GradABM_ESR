@@ -102,7 +102,7 @@ class SEIRMProgression(DiseaseProgression):
         curr_stages = torch.clone(current_stages).long()
         new_transition_times[
             (curr_stages == STAGE_INDEX["infected"]) * (t >= agents_next_stage_times)
-        ] = total_timesteps
+        ] = (total_timesteps + 1)
         new_transition_times[
             (curr_stages == STAGE_INDEX["exposed"]) * (t >= agents_next_stage_times)
         ] = (t + infected_to_recovered_or_dead_time)
