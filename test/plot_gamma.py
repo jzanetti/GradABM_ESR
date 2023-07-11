@@ -6,7 +6,7 @@ from scipy.stats import gamma
 x = np.linspace(0.1, 5, 100)
 
 # Compute y values using the gamma function
-y = gamma.pdf(x, a=1.5, scale=0.5)
+y = gamma.pdf(x, a=2.41, scale=2.0)
 
 # Create the plot
 plt.plot(x, y)

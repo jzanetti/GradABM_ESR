@@ -4,7 +4,8 @@ from copy import copy as shallow_copy
 import torch
 import torch.nn.functional as F
 from numpy import array
-from scipy.stats import gamma
+from scipy.stats import gamma as stats_gamma
+from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
@@ -198,15 +199,15 @@ def lam(x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integ
 class InfectionNetwork(MessagePassing):
     """Contact network with graph message passing function for disease spread"""
 
-    def __init__(self, lam, SFSusceptibility, SFInfector, lam_gamma_integrals, device):
+    def __init__(self, lam, SFSusceptibility, SFInfector, device):
         super(InfectionNetwork, self).__init__(aggr="add")
         self.lam = lam
         self.SFSusceptibility = SFSusceptibility
         self.SFInfector = SFInfector
-        self.lam_gamma_integrals = lam_gamma_integrals
+        # self.lam_gamma_integrals = lam_gamma_integrals
         self.device = device
 
-    def forward(self, data, r0_value_trainable):
+    def forward(self, data, r0_value_trainable, lam_gamma_integrals):
         x = data.x
         edge_index = data.edge_index
         edge_attr = data.edge_attr
@@ -219,15 +220,30 @@ class InfectionNetwork(MessagePassing):
             R=r0_value_trainable,
             SFSusceptibility=self.SFSusceptibility,
             SFInfector=self.SFInfector,
-            lam_gamma_integrals=self.lam_gamma_integrals,
+            lam_gamma_integrals=lam_gamma_integrals,
         )
 
     def message(
-        self, x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integrals
+        self,
+        x_i,
+        x_j,
+        edge_attr,
+        t,
+        R,
+        SFSusceptibility,
+        SFInfector,
+        lam_gamma_integrals,
     ):
         # x_j has shape [E, in_channels]
         tmp = self.lam(
-            x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integrals
+            x_i,
+            x_j,
+            edge_attr,
+            t,
+            R,
+            SFSusceptibility,
+            SFInfector,
+            lam_gamma_integrals,
         )  # tmp has shape [E, 2 * in_channels]
         return tmp
 
@@ -268,18 +284,18 @@ class GradABM:
             .to(self.device)
         )
 
-        self.lam_gamma_integrals = self._get_lam_gamma_integrals(
-            self.params["infection_cfg"]["gamma_func"]["shape"],
-            self.params["infection_cfg"]["gamma_func"]["scale"],
-            self.params["infection_cfg"]["gamma_func"]["loc"],
-            int(self.params["infection_cfg"]["gamma_func"]["max_infectiousness_days"]),
-        )  # add 10 to make sure we cover all
-        self.lam_gamma_integrals = self.lam_gamma_integrals.to(self.device)
+        # self.lam_gamma_integrals = self._get_lam_gamma_integrals(
+        #    self.params["infection_cfg"]["gamma_func"]["shape"],
+        #    self.params["infection_cfg"]["gamma_func"]["scale"],
+        #    self.params["infection_cfg"]["gamma_func"]["loc"],
+        #    int(self.params["infection_cfg"]["gamma_func"]["max_infectiousness_days"]),
+        # )  # add 10 to make sure we cover all
+        # self.lam_gamma_integrals = self.lam_gamma_integrals.to(self.device)
         self.net = InfectionNetwork(
             lam,
             self.SFSusceptibility,
             self.SFInfector,
-            self.lam_gamma_integrals,
+            # self.lam_gamma_integrals,
             self.device,
         ).to(self.device)
 
@@ -287,7 +303,7 @@ class GradABM:
         self.all_edgelist = all_interactions["all_edgelist"]
         self.all_edgeattr = all_interactions["all_edgeattr"]
 
-    def get_newly_exposed(self, r0_value, t):
+    def get_newly_exposed(self, r0_value, lam_gamma_integrals, t):
         all_nodeattr = torch.stack(
             (
                 self.agents_ages,  # 0
@@ -306,7 +322,7 @@ class GradABM:
             agents_mean_interactions=self.agents_mean_interactions_mu,
         )
 
-        lam_t = self.net(agents_data, r0_value)
+        lam_t = self.net(agents_data, r0_value, lam_gamma_integrals)
         prob_not_infected = torch.exp(-lam_t)
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
@@ -372,6 +388,13 @@ class GradABM:
                 all_params[proc_param] = param_info["learnable_param_default"][proc_param]
         return all_params
 
+    def cal_lam_gamma_integrals(self, shape, scale, max_infectiousness_days):
+        self.lam_gamma_integrals = self._get_lam_gamma_integrals(
+            shape,
+            scale,
+            int(max_infectiousness_days),
+        ).to(self.device)
+
     def step(
         self,
         t,
@@ -390,8 +413,15 @@ class GradABM:
                 proc_params["initial_infected_percentage"],
                 proc_params["infected_to_recovered_or_death_time"],
             )
+            self.cal_lam_gamma_integrals(
+                proc_params["infection_gamma_shape"],
+                proc_params["infection_gamma_scale"],
+                total_timesteps + 1,
+            )
 
-        newly_exposed_today = self.get_newly_exposed(proc_params["r0"], t)
+        newly_exposed_today = self.get_newly_exposed(
+            proc_params["r0"], self.lam_gamma_integrals, t
+        )
 
         recovered_dead_now, target2 = self.DPM.get_target_variables(
             proc_params["mortality_rate"],
@@ -438,12 +468,26 @@ class GradABM:
 
         return stage_records, target2
 
-    def _get_lam_gamma_integrals(self, a, b, loc, total_t):
-        res = [
-            (gamma.cdf(t_i, a=a, loc=loc, scale=b) - gamma.cdf(t_i - 1, a=a, loc=loc, scale=b))
-            for t_i in range(total_t)
-        ]
-        return torch.tensor(res).float()
+    def _get_lam_gamma_integrals(self, a, b, total_t):
+        # res = [
+        #    (
+        #        stats_gamma.cdf(t_i, a=a.item(), loc=0.0, scale=b)
+        #        - stats_gamma.cdf(t_i - 1, a=a.item(), loc=0.0, scale=b)
+        #    )
+        #    for t_i in range(total_t)
+        # ]
+        # return torch.tensor(res).float()
+        gamma_dist = torch_gamma(concentration=a, rate=1 / b)
+
+        res = gamma_dist.log_prob(torch.tensor(range(total_t))).exp()
+
+        # res = [
+        #    (gamma_dist.cdf(torch.tensor(t_i + 1)) - gamma_dist.cdf(torch.tensor(t_i)))
+        #    for t_i in range(total_t)
+        # ]
+        # res = torch.stack(res)
+        # res[0] = 0.0
+        return res
 
 
 def param_model_forward(param_model):

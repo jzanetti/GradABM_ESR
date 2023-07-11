@@ -25,3 +25,13 @@ learnable_params:
     min: 3.0
     max: 10.0
     default: 5.0
+  infection_gamma_shape:
+    enable: true
+    min: 1.0
+    max: 3.0
+    default: 1.5
+  infection_gamma_scale:
+    enable: true
+    min: 0.05
+    max: 3.0
+    default: 0.1

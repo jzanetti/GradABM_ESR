@@ -48,6 +48,14 @@ def get_loss_func(
             differentiable=False,
         )
 
+    elif opt_method == "adag":
+        opt = torch.optim.Adagrad(
+            filter(lambda p: p.requires_grad, param_model.parameters()),
+            lr=lr,
+            weight_decay=weight_decay,
+            differentiable=False,
+        )
+
     loss_weight = torch.ones((1, total_timesteps, 1)).to(device)
 
     return {

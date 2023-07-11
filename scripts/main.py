@@ -50,7 +50,7 @@ param_model = create_param_model(learnabl_param_cfg_path, device)
 
 print("Step 5: Creating loss function ...")
 loss_def = get_loss_func(
-    param_model, train_loader["total_timesteps"], device, lr=1e-2, opt_method="adam"
+    param_model, train_loader["total_timesteps"], device, lr=1e-2, opt_method="sgd"
 )  # adam or sgd
 
 print("Step 6: Building ABM ...")
@@ -99,7 +99,7 @@ for epi in range(num_epochs):
     param_values_list.append(param_values)
 
 
-plot_diags(predictions, epoch_loss_list)
+plot_diags(predictions, y, epoch_loss_list)
 
 savefig("test.png")
 close()
