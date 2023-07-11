@@ -1,0 +1,27 @@
+
+learnable_params:
+  r0: # overall infection rate
+    enable: true
+    min: 3.0
+    max: 8.0
+    default: 5.0
+  mortality_rate:
+    enable: true
+    min: 1.0
+    max: 30.0
+    default: 5
+  initial_infected_percentage:
+    enable: true
+    min: 10.0
+    max: 50.0
+    default: 25.0
+  exposed_to_infected_time:
+    enable: true
+    min: 1.0
+    max: 10.0
+    default: 3.0
+  infected_to_recovered_or_death_time:
+    enable: true
+    min: 3.0
+    max: 10.0
+    default: 5.0

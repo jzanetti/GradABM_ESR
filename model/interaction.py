@@ -50,7 +50,7 @@ def create_interactions(
     interaction_cfg_path: str,
     interaction_graph_path: str,
     num_agents: int,
-    device=torch_device("cpu"),
+    device,
     network_types: list = ["school", "household"],
 ) -> dict:
     """Obtain interaction networks

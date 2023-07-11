@@ -1,16 +1,15 @@
-import os
 from abc import ABC, abstractmethod
-from copy import copy
+from copy import copy as shallow_copy
 
-import pandas as pd
 import torch
 import torch.nn.functional as F
-import yaml
+from numpy import array
 from scipy.stats import gamma
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
-from model.utils import get_dir_from_path_list
+from model import ALL_PARAMS, STAGE_INDEX
+from model.utils import round_a_list
 
 
 class DiseaseProgression(ABC):
@@ -42,33 +41,24 @@ class SEIRMProgression(DiseaseProgression):
         super(DiseaseProgression, self).__init__()
         # encoding of stages
         # Stage progress:
-        # SUSCEPTIBLE => EXPOSED => INFECTED => RECOVERED/MORTALITY
-        self.SUSCEPTIBLE_VAR = 0
-        self.EXPOSED_VAR = 1
-        self.INFECTED_VAR = 2
-        self.RECOVERED_VAR = 3
-        self.MORTALITY_VAR = 4
-        # default times (only for initialization, later they are learned)
-        self.EXPOSED_TO_INFECTED_TIME = 3
-        self.INFECTED_TO_RECOVERED_TIME = 5
-        # inf time
-        # self.INFINITY_TIME = params["num_steps"] + 1
+        # SUSCEPTIBLE (0) => EXPOSED (1) => INFECTED (2) => RECOVERED/MORTALITY (3)
         self.num_agents = params["num_agents"]
 
     def init_infected_agents(self, initial_infected_percentage, device):
-        prob_infected = (initial_infected_percentage * 0.01) * torch.ones((self.num_agents, 1)).to(
+        prob_infected = (initial_infected_percentage / 100) * torch.ones((self.num_agents, 1)).to(
             device
         )
         p = torch.hstack((prob_infected, 1 - prob_infected))
         cat_logits = torch.log(p + 1e-9)
         agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
-        agents_stages *= self.INFECTED_VAR
+        agents_stages *= STAGE_INDEX["infected"]
         agents_stages = agents_stages.to(device)
+
         return agents_stages
 
     def init_infected_time(self, agents_stages, device):
-        agents_infected_time = -999 * torch.ones_like(agents_stages).to(device)
-        agents_infected_time[agents_stages == self.INFECTED_VAR] = 0
+        agents_infected_time = -1 * torch.ones_like(agents_stages).to(device)
+        agents_infected_time[agents_stages == STAGE_INDEX["infected"]] = 0
 
         return agents_infected_time
 
@@ -76,7 +66,7 @@ class SEIRMProgression(DiseaseProgression):
         self, agents_stages, infected_to_recovered_or_dead_time, device
     ):
         agents_next_stage_times = 0.001 * torch.ones_like(agents_stages).long().to(device)
-        agents_next_stage_times[agents_stages == self.INFECTED_VAR] = (
+        agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = (
             0 + infected_to_recovered_or_dead_time
         )
         return agents_next_stage_times
@@ -85,192 +75,77 @@ class SEIRMProgression(DiseaseProgression):
         """this is for the abm constructor"""
         infected_to_recovered_time = learnable_params["infected_to_recovered_time"]
         exposed_to_infected_time = learnable_params["exposed_to_infected_time"]
-        agents_next_stage_times[agents_stages == self.EXPOSED_VAR] = exposed_to_infected_time
-        agents_next_stage_times[agents_stages == self.INFECTED_VAR] = infected_to_recovered_time
+        agents_next_stage_times[agents_stages == STAGE_INDEX["exposed"]] = exposed_to_infected_time
+        agents_next_stage_times[
+            agents_stages == STAGE_INDEX["infected"]
+        ] = infected_to_recovered_time
         return agents_next_stage_times
 
     def get_newly_exposed(self, current_stages, potentially_exposed_today):
         # we now get the ones that new to exposure
-        newly_exposed_today = (current_stages == self.SUSCEPTIBLE_VAR) * potentially_exposed_today
+        newly_exposed_today = (
+            current_stages == STAGE_INDEX["susceptible"]
+        ) * potentially_exposed_today
         return newly_exposed_today
 
     def update_next_stage_times(
-        self, learnable_params, newly_exposed_today, current_stages, agents_next_stage_times, t
+        self,
+        exposed_to_infected_time,
+        infected_to_recovered_or_dead_time,
+        newly_exposed_today,
+        current_stages,
+        agents_next_stage_times,
+        t,
+        total_timesteps,
     ):
-        """update time
-
-        exposed_to_infected_time = learnable_params["exposed_to_infected_time"]
-        infected_to_recovered_time = learnable_params["infected_to_recovered_or_dead_time"]
-
-        new_transition_times = torch.clone(agents_next_stage_times)
-        curr_stages = torch.clone(current_stages).long()
-
-        for i in range(len(new_transition_times)):
-            if curr_stages[i] == self.INFECTED_VAR and agents_next_stage_times[i] == t:
-                new_transition_times[i] = 1  # self.INFINITY_TIME
-            elif curr_stages[i] == self.EXPOSED_VAR and agents_next_stage_times[i] == t:
-                new_transition_times[i] = t + infected_to_recovered_time
-
-        result = newly_exposed_today * (t + 1 + exposed_to_infected_time) + (1 - newly_exposed_today) * new_transition_times
-        return result
-
-        """
-        exposed_to_infected_time = learnable_params["exposed_to_infected_time"]
-        infected_to_recovered_time = learnable_params["infected_to_recovered_or_dead_time"]
-        # for non-exposed
-        # if S, R, M -> set to default value; if E/I -> update time if your transition time arrived in the current time
         new_transition_times = torch.clone(agents_next_stage_times)
         curr_stages = torch.clone(current_stages).long()
         new_transition_times[
-            (curr_stages == self.INFECTED_VAR) * (agents_next_stage_times <= t)
-        ] = 1  # self.INFINITY_TIME
+            (curr_stages == STAGE_INDEX["infected"]) * (t >= agents_next_stage_times)
+        ] = total_timesteps
         new_transition_times[
-            (curr_stages == self.EXPOSED_VAR) * (agents_next_stage_times <= t)
-        ] = (t + infected_to_recovered_time)
+            (curr_stages == STAGE_INDEX["exposed"]) * (t >= agents_next_stage_times)
+        ] = (t + infected_to_recovered_or_dead_time)
         return (
             newly_exposed_today * (t + 1 + exposed_to_infected_time)
             + (1 - newly_exposed_today) * new_transition_times
         )
 
     def get_target_variables(
-        self, learnable_params, current_stages, agents_next_stage_times, t, device
+        self, mortality_rate, current_stages, agents_next_stage_times, t, device
     ):
-        """get recovered (not longer infectious) + targets"""
+        recovered_or_dead_today = (
+            current_stages
+            * (current_stages == STAGE_INDEX["infected"])
+            * (t >= agents_next_stage_times)
+        ) / STAGE_INDEX[
+            "infected"
+        ]  # agents when stage changes
 
-        # recovered_or_dead_today = []
-        # for i in range(len(current_stages)):
-        #    if current_stages[i] == self.INFECTED_VAR and agents_next_stage_times[i] == t:
-        #        recovered_or_dead_today.append(True)
-        #    else:
-        #        recovered_or_dead_today.append(False)
-
-        # recovered_or_dead_today = []
-        # for i in range(len(current_stages)):
-        #     if current_stages[i] == self.INFECTED_VAR and agents_next_stage_times[i] == t:
-        #        recovered_or_dead_today.append(True)
-        #    else:
-        #        recovered_or_dead_today.append(False)
-        #
-        # convert True/False to 1.0/0.0
-        # recovered_or_dead_today = torch.tensor(
-        #    [float(int(value)) for value in recovered_or_dead_today], requires_grad=True
-        # ).to(device)
-
-        mortality_rate = learnable_params["mortality_rate"] / 100.0
-
-        recovered_or_dead_today = F.sigmoid(t - agents_next_stage_times)
-        # recovered_or_dead_today = (
-        #    recovered_or_dead_today - torch.min(recovered_or_dead_today)
-        # ) / (torch.max(recovered_or_dead_today) - torch.min(recovered_or_dead_today))
-        # recovered_or_dead_today = current_stages * recovered_or_dead_today
-
-        # print(recovered_or_dead_today.sum())
-
-        # Define the value of INFECTED_VAR
-        INFECTED_VAR = torch.tensor(self.INFECTED_VAR)
-
-        # Create the condition mask for current_stages
-        # torch.eq will break the computation graph and the output will not have a valid grad_fn associated with it as seen here (see: https://discuss.pytorch.org/t/custom-loss-function-error-element-0-of-tensors-does-not-require-grad-and-does-not-have-grad-fn/87944/9)
-        # condition_mask = torch.tensor(
-        #     torch.eq(current_stages, INFECTED_VAR).float(), requires_grad=True
-        # )
-        # condition_mask.requires_grad = True
-
-        # Apply the threshold condition on agents_next_stage_times
-        # threshold_mask = (agents_next_stage_times <= t).float()
-
-        # Compute the result with differentiable operations
-        # recovered_or_dead_today = (current_stages * condition_mask * threshold_mask) / INFECTED_VAR
-        #  recovered_or_dead_today = condition_mask
-
-        # recovered_or_dead_today_old = (
-        #    current_stages * (current_stages == self.INFECTED_VAR) * (agents_next_stage_times <= t)
-        # ) / self.INFECTED_VAR  # agents when stage changes
-
-        # if recovered_or_dead_today_old.tolist() != recovered_or_dead_today.tolist():
-        #    raise Exception("Errorrrrrrr !")
-
-        import numpy as np
-
-        def _continuous_approximation(x):
-            return 1 / (1 + torch.exp(-10 * (x + 1)))
-            # return (1 - torch.exp(-x)) / (1 + torch.exp(-x + 10))
-
-        if_reached_next_stage = _continuous_approximation(t - agents_next_stage_times)
-        # x = torch.where(agents_next_stage_times <= t, torch.tensor(1), torch.tensor(0))
-        if_infected = torch.where(
-            current_stages == self.INFECTED_VAR, torch.tensor(1), current_stages
-        )
-        recovered_or_dead_today = torch.mul(if_reached_next_stage, if_infected)
-        # recovered_or_dead_today = current_stages * (current_stages == self.INFECTED_VAR)
-
-        death_total_today = mortality_rate * torch.sum(recovered_or_dead_today)
-        # death_total_today = recovered_or_dead_today.sum()
-        # death_total_today = mortality_rate * recovered_or_dead_today.sum()
-        # death_total_today = mortality_rate * newly_exposed_today.sum()
-
+        death_total_today = (mortality_rate / 100.0) * torch.sum(recovered_or_dead_today)
         return recovered_or_dead_today, death_total_today
 
     def update_current_stage(
         self, newly_exposed_today, current_stages, agents_next_stage_times, t
     ):
         """progress disease: move agents to different disease stage"""
+        after_exposed = STAGE_INDEX["exposed"] * (t < agents_next_stage_times) + STAGE_INDEX[
+            "infected"
+        ] * (t >= agents_next_stage_times)
 
-        # transition_from_exposed = []
-        # for i in len(all_agents):
-        #    proc_next_time = agents_next_stage_times[i]
-        #    if t < proc_next_time:
-        #        transition_to_from_infected.append(self.EXPOSED_VAR)
-        #    else:
-        #        transition_to_from_infected.append(self.INFECTED_VAR)
-
-        # Apply differentiable approximations using the sigmoid function
-        # after_exposed = self.EXPOSED_VAR * (agents_next_stage_times > t) + self.INFECTED_VAR * (
-        #    agents_next_stage_times <= t
-        # )
-
-        condition1 = torch.round(torch.sigmoid(10 * (agents_next_stage_times - t)) - 0.001)
-        condition2 = torch.round(torch.sigmoid(10 * (t - agents_next_stage_times)) + 0.001)
-        after_exposed = self.EXPOSED_VAR * condition1 + self.INFECTED_VAR * condition2
-
-        # after_infected = []
-        # for i in len(all_agents):
-        #    proc_next_time = agents_next_stage_times[i]
-        #    if t < proc_next_time:
-        #        after_infected.append(self.INFECTED_VAR)
-        #    else:
-        #        after_infected.append(self.RECOVERED_VAR)
-
-        # after_infected = self.INFECTED_VAR * (agents_next_stage_times > t) + self.RECOVERED_VAR * (
-        #    agents_next_stage_times <= t
-        # )
-        # condition1 = torch.round(torch.sigmoid(10 * (agents_next_stage_times - t)) - 0.001)
-        # condition2 = torch.round(touch.sigmoid(10 * (t - agents_next_stage_times)) + 0.001)
-        after_infected = self.INFECTED_VAR * condition1 + self.RECOVERED_VAR * condition2
-
-        # stage_progression = []
-        # for stage in current_stages:
-        #    if stage == self.SUSCEPTIBLE_VAR:
-        #        stage_progression.append(self.SUSCEPTIBLE_VAR)
-        #    elif stage == self.RECOVERED_VAR:
-        #        stage_progression.append(self.RECOVERED_VAR)
-        #    elif stage == self.MORTALITY_VAR:
-        #        stage_progression.append(self.MORTALITY_VAR)
-        #    elif stage == self.EXPOSED_VAR:
-        #        stage_progression.append(transition_to_infected)
-        #    elif stage == self.INFECTED_VAR:
-        #        stage_progression.append(transition_to_mortality_or_recovered)
+        after_infected = STAGE_INDEX["infected"] * (t < agents_next_stage_times) + STAGE_INDEX[
+            "recovered_or_death"
+        ] * (t >= agents_next_stage_times)
 
         stage_progression = (
-            (current_stages == self.SUSCEPTIBLE_VAR) * self.SUSCEPTIBLE_VAR
-            + (current_stages == self.RECOVERED_VAR) * self.RECOVERED_VAR
-            + (current_stages == self.MORTALITY_VAR) * self.MORTALITY_VAR
-            + (current_stages == self.EXPOSED_VAR) * after_exposed
-            + (current_stages == self.INFECTED_VAR) * after_infected
+            (current_stages == STAGE_INDEX["susceptible"]) * STAGE_INDEX["susceptible"]
+            + (current_stages == STAGE_INDEX["recovered_or_death"])
+            * STAGE_INDEX["recovered_or_death"]
+            + (current_stages == STAGE_INDEX["exposed"]) * after_exposed
+            + (current_stages == STAGE_INDEX["infected"]) * after_infected
         )
 
-        # update curr stage - if exposed at current step t or not
-        current_stages = newly_exposed_today * self.EXPOSED_VAR + stage_progression
+        current_stages = newly_exposed_today * STAGE_INDEX["exposed"] + stage_progression
         return current_stages
 
 
@@ -387,12 +262,6 @@ class GradABM:
             # torch.tensor([0.1])
             .float().to(self.device)
         )
-        # Scale factor for a infector being asym, five stages:
-        # - SUSCEPTIBLE_VAR = 0
-        # - EXPOSED_VAR = 1  # exposed state
-        # - INFECTED_VAR = 2
-        # - RECOVERED_VAR = 3
-        # - MORTALITY_VAR = 4
         self.SFInfector = (
             torch.tensor(self.params["infection_cfg"]["scaling_factor"]["symptom_dependant"])
             .float()
@@ -400,9 +269,10 @@ class GradABM:
         )
 
         self.lam_gamma_integrals = self._get_lam_gamma_integrals(
-            self.params["infection_cfg"]["gamma_func"]["a"],
-            self.params["infection_cfg"]["gamma_func"]["b"],
-            int(self.params["infection_cfg"]["total_infection_days"]),
+            self.params["infection_cfg"]["gamma_func"]["shape"],
+            self.params["infection_cfg"]["gamma_func"]["scale"],
+            self.params["infection_cfg"]["gamma_func"]["loc"],
+            int(self.params["infection_cfg"]["gamma_func"]["max_infectiousness_days"]),
         )  # add 10 to make sure we cover all
         self.lam_gamma_integrals = self.lam_gamma_integrals.to(self.device)
         self.net = InfectionNetwork(
@@ -417,47 +287,7 @@ class GradABM:
         self.all_edgelist = all_interactions["all_edgelist"]
         self.all_edgeattr = all_interactions["all_edgeattr"]
 
-    def get_interaction_graph(self, t):
-        return self.all_edgelist, self.all_edgeattr
-
-    def init_state_tensors(self, learnable_params):
-        # Initalizae current stages
-        self.current_stages = self.DPM.init_infected_agents(
-            learnable_params["initial_infected_percentage"], self.device
-        )
-        self.agents_infected_index = (self.current_stages >= self.DPM.INFECTED_VAR).to(self.device)
-        self.agents_infected_time = self.DPM.init_infected_time(self.current_stages, self.device)
-
-        self.agents_next_stage_times = self.DPM.init_agents_next_stage_time(
-            self.current_stages,
-            learnable_params["infected_to_recovered_or_dead_time"],
-            self.device,
-        )
-        self.agents_next_stage_times = self.agents_next_stage_times.float()
-        self.agents_infected_time = self.agents_infected_time.float()
-
-    def step(self, t, param_t):
-        """Send as input: r0_value [hidden state] -> trainable parameters  and t is the time-step of simulation."""
-        # construct dictionary with trainable parameters
-        learnable_params = {
-            "r0_value": param_t[0],
-            "mortality_rate": param_t[1],
-            "initial_infected_percentage": param_t[2],
-            "exposed_to_infected_time": param_t[3],
-            "infected_to_recovered_or_dead_time": param_t[4],
-            "infection_gamma_pdf_loc": 0,  # param_t[5],
-            "infection_gamma_pdf_a": 1.2,  # param_t[6],
-            "infection_gamma_pdf_scale": 0.5,  # param_t[7],
-        }
-
-        """ change params that were set in constructor """
-        if t == 0:
-            self.init_state_tensors(learnable_params)
-
-        # self.agents_next_stage_times = torch.round(self.agents_next_stage_times)
-        all_edgelist, all_edgeattr = self.get_interaction_graph(
-            t
-        )  # the interaction graphs for GNN at time t
+    def get_newly_exposed(self, r0_value, t):
         all_nodeattr = torch.stack(
             (
                 self.agents_ages,  # 0
@@ -470,36 +300,13 @@ class GradABM:
         ).t()
         agents_data = Data(
             all_nodeattr,
-            edge_index=all_edgelist,
-            edge_attr=all_edgeattr,
+            edge_index=self.all_edgelist,
+            edge_attr=self.all_edgeattr,
             t=t,
             agents_mean_interactions=self.agents_mean_interactions_mu,
         )
 
-        """
-        res = [
-            (
-                gamma.cdf(
-                    t_i,
-                    a=learnable_params["infection_gamma_pdf_a"].item(),
-                    loc=0,
-                    scale=learnable_params["infection_gamma_pdf_scale"].item(),
-                )
-                - gamma.cdf(
-                    t_i - 1,
-                    a=learnable_params["infection_gamma_pdf_a"].item(),
-                    loc=0,
-                    scale=learnable_params["infection_gamma_pdf_scale"].item(),
-                )
-            )
-            for t_i in range(20)
-        ]
-        """
-        # self.net.lam_gamma_integrals = torch.tensor(res).float().to(self.device)
-
-        # self.net.lam_gamma_integrals = torch.tensor([0.0]).float().to(self.device)
-
-        lam_t = self.net(agents_data, learnable_params["r0_value"])
+        lam_t = self.net(agents_data, r0_value)
         prob_not_infected = torch.exp(-lam_t)
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
@@ -511,14 +318,92 @@ class GradABM:
             self.current_stages, potentially_exposed_today
         )
 
-        if t > 10:
-            x = 3
+        return newly_exposed_today
+
+    def init_infected_tensors(
+        self, initial_infected_percentage, infected_to_recovered_or_dead_time
+    ):
+        self.current_stages = self.DPM.init_infected_agents(
+            initial_infected_percentage, self.device
+        )
+        self.agents_infected_index = (self.current_stages >= STAGE_INDEX["infected"]).to(
+            self.device
+        )
+        self.agents_infected_time = self.DPM.init_infected_time(self.current_stages, self.device)
+
+        self.agents_next_stage_times = self.DPM.init_agents_next_stage_time(
+            self.current_stages,
+            infected_to_recovered_or_dead_time,
+            self.device,
+        )
+        self.agents_next_stage_times = self.agents_next_stage_times.float()
+        self.agents_infected_time = self.agents_infected_time.float()
+
+    def print_debug_info(
+        self,
+        current_stages,
+        agents_next_stage_times,
+        newly_exposed_today,
+        target2,
+        debug_info: list = ["stage"],
+    ):
+        if "t" in debug_info:
+            print(f"Timestep: {t}")
+        if "stage" in debug_info:
+            print(f"    cur_stage: {round_a_list(current_stages.tolist())}")
+        if "stage_times" in debug_info:
+            print(f"    next_stage_times: {round_a_list(agents_next_stage_times.tolist())}")
+        if "exposed" in debug_info:
+            print(f"    newly exposed: {newly_exposed_today}")
+        if "die" in debug_info:
+            print(f"    die: {target2}")
+
+    def get_params(self, param_info: dict, param_t: list):
+        all_params = {}
+        for proc_param in ALL_PARAMS:
+            if proc_param in param_info["learnable_param_order"]:
+                try:
+                    all_params[proc_param] = param_t[
+                        param_info["learnable_param_order"].index(proc_param)
+                    ]
+                except IndexError:  # if only one learnable param
+                    all_params[proc_param] = param_t
+            else:
+                all_params[proc_param] = param_info["learnable_param_default"][proc_param]
+        return all_params
+
+    def step(
+        self,
+        t,
+        param_t,
+        param_info,
+        total_timesteps,
+        debug: bool = False,
+        save_record: bool = False,
+    ):
+        """Send as input: r0_value [hidden state] -> trainable parameters  and t is the time-step of simulation."""
+
+        proc_params = self.get_params(param_info, param_t)
+
+        if t == 0:
+            self.init_infected_tensors(
+                proc_params["initial_infected_percentage"],
+                proc_params["infected_to_recovered_or_death_time"],
+            )
+
+        newly_exposed_today = self.get_newly_exposed(proc_params["r0"], t)
 
         recovered_dead_now, target2 = self.DPM.get_target_variables(
-            learnable_params, self.current_stages, self.agents_next_stage_times, t, self.device
+            proc_params["mortality_rate"],
+            self.current_stages,
+            self.agents_next_stage_times,
+            t,
+            self.device,
         )
-        # print(f"{t}: {self.current_stages.tolist()} ~ {potentially_exposed_today} ~ {target2}")
-        recovered_dead_now = torch.round(recovered_dead_now)
+        if debug:
+            self.print_debug_info(
+                self.current_stages, self.agents_next_stage_times, newly_exposed_today, target2
+            )
 
         # get next stages without updating yet the current_stages
         next_stages = self.DPM.update_current_stage(
@@ -527,14 +412,19 @@ class GradABM:
 
         # update times with current_stages
         self.agents_next_stage_times = self.DPM.update_next_stage_times(
-            learnable_params,
+            proc_params["exposed_to_infected_time"],
+            proc_params["infected_to_recovered_or_death_time"],
             newly_exposed_today,
             self.current_stages,
             self.agents_next_stage_times,
             t,
+            total_timesteps,
         )
 
-        # safely update current_stages
+        if save_record:
+            stage_records = shallow_copy(self.current_stages.tolist())
+        else:
+            stage_records = None
         self.current_stages = next_stages
 
         # update for newly exposed agents {exposed_today}
@@ -546,12 +436,12 @@ class GradABM:
         # reconcile and return values
         self.current_time += 1
 
-        return None, target2
+        return stage_records, target2
 
-    def _get_lam_gamma_integrals(self, a, b, t):
+    def _get_lam_gamma_integrals(self, a, b, loc, total_t):
         res = [
-            (gamma.cdf(t_i, a=a, loc=0, scale=b) - gamma.cdf(t_i - 1, a=a, loc=0, scale=b))
-            for t_i in range(t)
+            (gamma.cdf(t_i, a=a, loc=loc, scale=b) - gamma.cdf(t_i - 1, a=a, loc=loc, scale=b))
+            for t_i in range(total_t)
         ]
         return torch.tensor(res).float()
 
@@ -560,20 +450,36 @@ def param_model_forward(param_model):
     return param_model.forward()
 
 
-def forward_simulator(param_values, abm, training_num_steps, devices):
+def forward_simulator(
+    param_values, param_info, abm, training_num_steps, devices, save_record: bool = False
+):
     """assumes abm contains only one simulator for covid (one county), and multiple for flu (multiple counties)"""
     num_counties = 1
     param_values = param_values.squeeze(0)
     predictions = []
-    training_num_steps = 15
+    all_records = []
     for time_step in range(training_num_steps):
-        _, pred_t = abm.step(time_step, param_values.to(abm.device))
+        proc_record, pred_t = abm.step(
+            time_step,
+            param_values.to(abm.device),
+            param_info,
+            training_num_steps,
+            debug=False,
+            save_record=save_record,
+        )
         pred_t = pred_t.type(torch.float64)
         predictions.append(pred_t.to(devices[0]))
+
+        if save_record:
+            all_records.append(proc_record)
+
     predictions = torch.stack(predictions, 0).reshape(1, -1)  # num counties, seq len
     predictions = predictions.reshape(num_counties, -1)
 
-    return predictions.unsqueeze(2)
+    if save_record:
+        all_records = array(all_records)
+
+    return {"prediction": predictions.unsqueeze(2), "all_records": all_records}
 
 
 def build_simulator(
@@ -581,7 +487,6 @@ def build_simulator(
 ):
     """build simulator: ABM or ODE"""
     params = {
-        # "num_steps": start_num_step,
         "all_agents": all_agents,
         "all_interactions": all_interactions,
         "infection_cfg": infection_cfg,

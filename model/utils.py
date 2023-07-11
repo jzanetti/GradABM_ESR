@@ -15,7 +15,12 @@ class NegativeCosineSimilarityLoss(torch.nn.Module):
 
 
 def get_loss_func(
-    param_model, lr: float = 0.0001, weight_decay: float = 0.0, opt_method: str = "adam"
+    param_model,
+    total_timesteps,
+    device,
+    lr: float = 0.0001,
+    weight_decay: float = 0.01,
+    opt_method: str = "adam",
 ):
     """Obtain loss function
 
@@ -43,7 +48,13 @@ def get_loss_func(
             differentiable=False,
         )
 
-    return {"loss_func": torch.nn.MSELoss(reduction="none"), "opt": opt}
+    loss_weight = torch.ones((1, total_timesteps, 1)).to(device)
+
+    return {
+        "loss_func": torch.nn.MSELoss(reduction="none"),
+        "opt": opt,
+        "loss_weight": loss_weight,
+    }
 
 
 class SeqData(torch.utils.data.Dataset):
@@ -66,3 +77,7 @@ def get_dir_from_path_list(path):
         if not (os.path.exists(outdir)):
             os.makedirs(outdir)
     return outdir
+
+
+def round_a_list(input: list, sig_figures: int = 3):
+    return [round(x, sig_figures) for x in input]

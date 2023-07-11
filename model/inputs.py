@@ -39,12 +39,16 @@ def train_data_wrapper(
     Returns:
         DataLoader: Torch data loader
     """
-    print("Reading cases ...")
     y_data = read_cases(y_path)
 
     train_dataset = SeqData(y_data)
 
-    return torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
+    return {
+        "train_dataset": torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=shuffle
+        ),
+        "total_timesteps": y_data.shape[1],
+    }
 
 
 def create_metadata(all_areas: list = ["test_area"]) -> array:
