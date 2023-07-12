@@ -8,14 +8,15 @@ from model.diags import plot_diags
 from model.inputs import create_agents, read_infection_cfg, train_data_wrapper
 from model.interaction import create_interactions
 from model.param_model import create_param_model
-from model.utils import get_loss_func
+from model.utils import get_loss_func, postproc
 
 # device = torch.device("cpu")
 device = torch.device(f"cuda:0")
+remove_warm_up = True
 # -------------------------------
 # Read data:
 # -------------------------------
-y_path = "data/exp1/target.csv"
+y_path = "data/exp1/targets_test.csv"
 agent_path = "data/exp1/agents.csv"
 interaction_graph_path = "data/exp1/interaction_graph_cfg.csv"
 
@@ -50,8 +51,13 @@ param_model = create_param_model(learnabl_param_cfg_path, device)
 
 print("Step 5: Creating loss function ...")
 loss_def = get_loss_func(
-    param_model, train_loader["total_timesteps"], device, lr=1e-2, opt_method="sgd"
-)  # adam or sgd
+    param_model,
+    train_loader["total_timesteps"],
+    device,
+    lr=1e-2,
+    opt_method="sgd",
+    loss_method="mse",
+)
 
 print("Step 6: Building ABM ...")
 abm = build_simulator([device], all_agents, all_interactions, infection_cfg)
@@ -59,7 +65,7 @@ abm = build_simulator([device], all_agents, all_interactions, infection_cfg)
 print("Step 7: Getting parameters ...")
 param_info = param_model.param_info()
 
-num_epochs = 1000
+num_epochs = 100
 epoch_loss_list = []
 param_values_list = []
 
@@ -83,9 +89,12 @@ for epi in range(num_epochs):
             save_record=save_record,
         )
 
-        loss = (
-            loss_def["loss_weight"] * loss_def["loss_func"](y, predictions["prediction"])
-        ).mean()
+        output = postproc(param_model, predictions, y, remove_warm_up)
+        # loss = (
+        #    loss_def["loss_weight"]
+        #    * loss_def["loss_func"](output["y"], output["pred"]["prediction"])
+        # ).mean()
+        loss = loss_def["loss_func"](output["y"], output["pred"]["prediction"]).mean()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(param_model.parameters(), 10.0)
         loss_def["opt"].step()
@@ -99,7 +108,7 @@ for epi in range(num_epochs):
     param_values_list.append(param_values)
 
 
-plot_diags(predictions, y, epoch_loss_list)
+plot_diags(output, epoch_loss_list)
 
 savefig("test.png")
 close()
