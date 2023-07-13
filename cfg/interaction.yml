@@ -1,6 +1,6 @@
 school:
   mu: 2  # the number of interactions for each venue each day
-  bn: 0.25 # the intensity of interaction at each venue
+  bn: 0.1 # the intensity of interaction at each venue
 
 household:
   mu: 4

@@ -10,4 +10,5 @@ ALL_PARAMS = [
 
 STAGE_INDEX = {"susceptible": 0, "exposed": 1, "infected": 2, "recovered_or_death": 3}
 
-INFINITY_TIME = 9999
+
+BEST_LOSS = float("inf")

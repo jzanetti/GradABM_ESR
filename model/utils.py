@@ -2,8 +2,11 @@ import os
 
 import torch
 import torch.nn.functional as F
-
-from model.sdtw import SoftDTW
+from torchmetrics.regression import (
+    MeanAbsolutePercentageError,
+    MeanSquaredError,
+    PearsonCorrCoef,
+)
 
 
 def postproc(param_model, prediction, y, remove_warm_up: bool = False) -> dict:
@@ -45,7 +48,7 @@ def get_loss_func(
     lr: float = 0.0001,
     weight_decay: float = 0.01,
     opt_method: str = "adam",
-    loss_method: str = "mse",  # mse or sdtw
+    loss_method: str = "mse",  # mse or mspe
 ):
     """Obtain loss function
 
@@ -81,12 +84,28 @@ def get_loss_func(
             differentiable=False,
         )
 
+    elif opt_method == "rmsp":
+        opt = torch.optim.RMSprop(
+            filter(lambda p: p.requires_grad, param_model.parameters()),
+            lr=lr,
+            weight_decay=weight_decay,
+            differentiable=False,
+        )
+
+    elif opt_method == "adad":
+        opt = torch.optim.Adadelta(
+            filter(lambda p: p.requires_grad, param_model.parameters()),
+            lr=lr,
+            weight_decay=weight_decay,
+            differentiable=False,
+        )
+
     loss_weight = torch.ones((1, total_timesteps, 1)).to(device)
 
     if loss_method == "mse":
-        loss_func = torch.nn.MSELoss(reduction="none")
-    elif loss_method == "sdtw":
-        loss_func = SoftDTW(use_cuda=True, gamma=0.1)
+        loss_func = MeanSquaredError().to(device)
+    elif loss_method == "mspe":
+        loss_func = MeanAbsolutePercentageError().to(device)
 
     return {
         "loss_func": loss_func,

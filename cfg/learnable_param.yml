@@ -2,14 +2,14 @@
 learnable_params:
   r0: # overall infection rate
     enable: true
-    min: 3.0
-    max: 8.0
+    min: 1.0
+    max: 15.0
     default: 5.0
   mortality_rate:
     enable: true
-    min: 1.0
-    max: 30.0
-    default: 5
+    min: 0.1
+    max: 2.0
+    default: 1.0
   initial_infected_percentage:
     enable: true
     min: 1.0
@@ -33,5 +33,5 @@ learnable_params:
   infection_gamma_scale:
     enable: true
     min: 0.05
-    max: 3.0
-    default: 0.1
+    max: 30.0
+    default: 10.0

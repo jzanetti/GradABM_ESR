@@ -31,11 +31,16 @@ class LearnableParams(nn.Module):
         learnable_param_default = {}
         param_min = []
         param_max = []
+        learnable_params_list = []
         for param_name in learnable_param["learnable_params"]:
             if learnable_param["learnable_params"][param_name]["enable"]:
                 learnable_param_order.append(param_name)
                 param_min.append(learnable_param["learnable_params"][param_name]["min"])
                 param_max.append(learnable_param["learnable_params"][param_name]["max"])
+                learnable_params_list.append(
+                    learnable_param["learnable_params"][param_name]["default"]
+                    / learnable_param["learnable_params"][param_name]["max"]
+                )
             else:
                 learnable_param_default[param_name] = learnable_param["learnable_params"][
                     param_name
@@ -43,12 +48,13 @@ class LearnableParams(nn.Module):
 
         super().__init__()
         # self.device = device
-        self.learnable_params = nn.Parameter(torch_rand(len(learnable_param_order), device=device))
+        self.learnable_params = nn.Parameter(torch_tensor(learnable_params_list, device=device))
         self.min_values = torch_tensor(param_min, device=device)
         self.max_values = torch_tensor(param_max, device=device)
         self.learnable_param_order = learnable_param_order
         self.learnable_param_default = learnable_param_default
         self.scaling_func = nn.Sigmoid()
+        # self.scaling_func = nn.ReLU()
 
     def forward(self):
         return self.min_values + (self.max_values - self.min_values) * self.scaling_func(
