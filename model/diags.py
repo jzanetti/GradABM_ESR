@@ -14,22 +14,16 @@ from model import STAGE_INDEX
 
 
 def plot_diags(output, epoch_loss_list):
-    my_pred = [
-        item for sublist in output["pred"]["prediction"][0, :, :].tolist() for item in sublist
-    ]
+    my_pred = output["pred"].tolist()
 
     # ----------------------------
     # Plot agents
     # ----------------------------
-    susceptible_counts = count_nonzero(
-        output["pred"]["all_records"] == STAGE_INDEX["susceptible"], axis=1
-    )
-    exposed_counts = count_nonzero(output["pred"]["all_records"] == STAGE_INDEX["exposed"], axis=1)
-    infected_counts = count_nonzero(
-        output["pred"]["all_records"] == STAGE_INDEX["infected"], axis=1
-    )
+    susceptible_counts = count_nonzero(output["all_records"] == STAGE_INDEX["susceptible"], axis=1)
+    exposed_counts = count_nonzero(output["all_records"] == STAGE_INDEX["exposed"], axis=1)
+    infected_counts = count_nonzero(output["all_records"] == STAGE_INDEX["infected"], axis=1)
     recovered_or_death_counts = count_nonzero(
-        output["pred"]["all_records"] == STAGE_INDEX["recovered_or_death"], axis=1
+        output["all_records"] == STAGE_INDEX["recovered_or_death"], axis=1
     )
 
     plot(susceptible_counts, label="Susceptible")
@@ -60,7 +54,7 @@ def plot_diags(output, epoch_loss_list):
     # Plot Prediction/Truth
     # ----------------------------
 
-    my_targ = output["y"][0, :, 0].tolist()
+    my_targ = output["y"].tolist()
     plot(my_pred, label="Prediction")
     plot(my_targ, label="Truth")
     legend()

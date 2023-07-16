@@ -20,23 +20,30 @@ def postproc(param_model, prediction, y, remove_warm_up: bool = False) -> dict:
         prediction (_type_): _description_
         y (_type_): _description_
     """
-    output = {"pred": prediction, "y": y}
+    output = {
+        "pred": prediction["prediction"][0, :],
+        "all_records": prediction["all_records"],
+        "y": y[0, :, 0],
+    }
     if remove_warm_up:
         infected_to_recovered_or_death_time_index = param_model.learnable_param_order.index(
             "infected_to_recovered_or_death_time"
         )
-        warm_up_period_end = param_model.max_values[infected_to_recovered_or_death_time_index]
 
-        output["pred"]["prediction"] = output["pred"]["prediction"][
-            :, int(warm_up_period_end.item()) :, :
-        ]
+        exposed_to_infected_time_index = param_model.learnable_param_order.index(
+            "exposed_to_infected_time"
+        )
+        warm_up_period_end = (
+            param_model.max_values[infected_to_recovered_or_death_time_index]
+            + param_model.max_values[exposed_to_infected_time_index]
+        )
 
-        if len(output["pred"]["all_records"]) > 0:
-            output["pred"]["all_records"] = output["pred"]["all_records"][
-                int(warm_up_period_end.item()) :, :
-            ]
+        output["pred"] = output["pred"][int(warm_up_period_end.item()) :]
 
-        output["y"] = y[:, int(warm_up_period_end.item()) :, :]
+        if output["all_records"] is not None:
+            output["all_records"] = output["all_records"][int(warm_up_period_end.item()) :]
+
+        output["y"] = output["y"][int(warm_up_period_end.item()) :]
 
     return output
 
@@ -46,7 +53,7 @@ def get_loss_func(
     total_timesteps,
     device,
     lr: float = 0.0001,
-    weight_decay: float = 0.01,
+    weight_decay: float = 0.0,  # 0.01
     opt_method: str = "adam",
     loss_method: str = "mse",  # mse or mspe
 ):
@@ -73,7 +80,7 @@ def get_loss_func(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=lr,
             weight_decay=weight_decay,
-            differentiable=False,
+            differentiable=True,
         )
 
     elif opt_method == "adag":

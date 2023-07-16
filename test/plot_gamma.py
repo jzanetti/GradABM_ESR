@@ -10,22 +10,23 @@ x = np.linspace(0, 70, 70)
 
 # Compute y values using the gamma function
 y1 = gamma.pdf(x, a=2.41, scale=30.0)
-y2 = gamma.pdf(x, a=10.41, scale=0.5)
+y2 = gamma.pdf(x, a=2.41, scale=0.5)
 
-y = 10.0 * (y1 / max(y1))
+# y = 10.0 * (y1 / max(y1))
 
 # Create the plot
-plt.plot(x, y)
+plt.plot(x, y1, label="y1")
+plt.plot(x, y2, label="y2")
 plt.title("Gamma Function")
 plt.xlabel("x")
 plt.ylabel("Gamma(x)")
-
+plt.legend()
 # Display the plot
 
 # Display the plot
 plt.savefig("test.png")
 
-output = {"target": y}
-output = pandas.DataFrame.from_dict(output)
-output.to_csv("data/exp1/targets_test2.csv", index=False)
+# output = {"target": y}
+# output = pandas.DataFrame.from_dict(output)
+# output.to_csv("data/exp1/targets_test2.csv", index=False)
 plt.close()

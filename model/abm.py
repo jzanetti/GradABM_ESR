@@ -9,7 +9,7 @@ from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
-from model import ALL_PARAMS, STAGE_INDEX
+from model import ALL_PARAMS, MAX_INFECTIOUS_GAMMA_RATE, STAGE_INDEX
 from model.utils import round_a_list
 
 
@@ -44,6 +44,39 @@ class SEIRMProgression(DiseaseProgression):
         # Stage progress:
         # SUSCEPTIBLE (0) => EXPOSED (1) => INFECTED (2) => RECOVERED/MORTALITY (3)
         self.num_agents = params["num_agents"]
+
+    def add_random_infected(
+        self,
+        random_percentage,
+        infected_to_recovered_time,
+        agents_stages,
+        agents_infected_time,
+        agents_next_stage_times,
+        t,
+        device,
+    ):
+        # Add random infected:
+        random_infected_p = (random_percentage / 100.0) * torch.ones((self.num_agents, 1)).to(
+            device
+        )
+        random_infected_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
+        p = torch.hstack((random_infected_p, 1 - random_infected_p))
+        cat_logits = torch.log(p + 1e-9)
+        agents_stages_with_random_infected = F.gumbel_softmax(
+            logits=cat_logits, tau=1, dim=1, hard=True
+        )[:, 0]
+        agents_stages_with_random_infected *= STAGE_INDEX["infected"]
+        agents_stages = agents_stages + agents_stages_with_random_infected
+        # print(t, agents_stages_with_random_infected.tolist().count(2))
+        # Updated infected time:
+        agents_infected_time[agents_stages_with_random_infected == STAGE_INDEX["infected"]] = t
+
+        # Updated init_agents_next_stage_time:
+        agents_next_stage_times[agents_stages_with_random_infected == STAGE_INDEX["infected"]] = (
+            t + infected_to_recovered_time
+        )
+
+        return agents_stages, agents_infected_time, agents_next_stage_times
 
     def init_infected_agents(self, initial_infected_percentage, device):
         prob_infected = (initial_infected_percentage / 100) * torch.ones((self.num_agents, 1)).to(
@@ -130,13 +163,15 @@ class SEIRMProgression(DiseaseProgression):
         self, newly_exposed_today, current_stages, agents_next_stage_times, t
     ):
         """progress disease: move agents to different disease stage"""
+        agents_next_stage_times_max = agents_next_stage_times + 1.0
+
         after_exposed = STAGE_INDEX["exposed"] * (t < agents_next_stage_times) + STAGE_INDEX[
             "infected"
-        ] * (t >= agents_next_stage_times)
+        ] * ((t >= agents_next_stage_times) & (t < agents_next_stage_times_max))
 
         after_infected = STAGE_INDEX["infected"] * (t < agents_next_stage_times) + STAGE_INDEX[
             "recovered_or_death"
-        ] * (t >= agents_next_stage_times)
+        ] * ((t >= agents_next_stage_times) & (t < agents_next_stage_times_max))
 
         stage_progression = (
             (current_stages == STAGE_INDEX["susceptible"]) * STAGE_INDEX["susceptible"]
@@ -165,6 +200,7 @@ def lam(x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integ
     integrals[infected_idx] = lam_gamma_integrals[
         infected_times.long()
     ]  #:,2 is infected index and :,3 is infected time
+
     edge_network_numbers = edge_attr[
         0, :
     ]  # to account for the fact that mean interactions start at 4th position of x
@@ -191,6 +227,13 @@ def lam(x_i, x_j, edge_attr, t, R, SFSusceptibility, SFInfector, lam_gamma_integ
     # And then .view(-1) reshapes the tensor into a 1-dimensional tensor, e.g.,
     # 3   1   4   1   1   4   3   1   4
 
+    # Value range:
+    #  - R: 0.1 - 15.0
+    #  - S_A_s: 0.35 - 1.52
+    #  - A_s_i: 0.0 - 0.72
+    #  - integrals: 1.52
+    #  - B_n: 0.1
+    #  - I_bar: 2
     res = R * S_A_s * A_s_i * B_n * integrals / I_bar  # Edge attribute 1 is B_n
 
     return res.view(-1, 1)
@@ -336,6 +379,22 @@ class GradABM:
 
         return newly_exposed_today
 
+    def create_random_infected_tensors(
+        self,
+        random_percentage,
+        infected_to_recovered_time,
+        t,
+    ):
+        return self.DPM.add_random_infected(
+            random_percentage,
+            infected_to_recovered_time,
+            self.current_stages,
+            self.agents_infected_time,
+            self.agents_next_stage_times,
+            t,
+            self.device,
+        )
+
     def init_infected_tensors(
         self, initial_infected_percentage, infected_to_recovered_or_dead_time
     ):
@@ -397,10 +456,13 @@ class GradABM:
                 all_params[proc_param] = param_info["learnable_param_default"][proc_param]
         return all_params
 
-    def cal_lam_gamma_integrals(self, shape, scale, max_infectiousness_days):
+    def cal_lam_gamma_integrals(
+        self, shape, scale, infection_gamma_scaling_factor, max_infectiousness_days=20
+    ):
         self.lam_gamma_integrals = self._get_lam_gamma_integrals(
             shape,
             scale,
+            infection_gamma_scaling_factor,
             int(max_infectiousness_days),
         ).to(self.device)
 
@@ -411,7 +473,7 @@ class GradABM:
         param_info,
         total_timesteps,
         debug: bool = False,
-        save_record: bool = False,
+        save_records: bool = False,
     ):
         """Send as input: r0_value [hidden state] -> trainable parameters  and t is the time-step of simulation."""
 
@@ -425,7 +487,17 @@ class GradABM:
             self.cal_lam_gamma_integrals(
                 proc_params["infection_gamma_shape"],
                 proc_params["infection_gamma_scale"],
-                total_timesteps + 1,
+                proc_params["infection_gamma_scaling_factor"],
+            )
+        else:
+            (
+                self.current_stages,
+                self.agents_infected_time,
+                self.agents_next_stage_times,
+            ) = self.create_random_infected_tensors(
+                proc_params["random_infected_percentgae"],
+                proc_params["infected_to_recovered_or_death_time"],
+                t,
             )
 
         newly_exposed_today = self.get_newly_exposed(
@@ -440,10 +512,9 @@ class GradABM:
             self.device,
         )
 
-        if save_record:
+        stage_records = None
+        if save_records:
             stage_records = shallow_copy(self.current_stages.tolist())
-        else:
-            stage_records = None
 
         if debug:
             self.print_debug_info(
@@ -479,66 +550,63 @@ class GradABM:
 
         return stage_records, target2
 
-    def _get_lam_gamma_integrals(self, a, b, total_t):
-        # res = [
-        #    (
-        #        stats_gamma.cdf(t_i, a=a.item(), loc=0.0, scale=b)
-        #        - stats_gamma.cdf(t_i - 1, a=a.item(), loc=0.0, scale=b)
-        #    )
-        #    for t_i in range(total_t)
-        # ]
-        # return torch.tensor(res).float()
+    def _get_lam_gamma_integrals(self, a, b, infection_gamma_scaling_factor, total_t):
         gamma_dist = torch_gamma(concentration=a, rate=1 / b)
 
         res = gamma_dist.log_prob(torch.tensor(range(total_t))).exp()
 
-        # res = [
-        #    (gamma_dist.cdf(torch.tensor(t_i + 1)) - gamma_dist.cdf(torch.tensor(t_i)))
-        #    for t_i in range(total_t)
-        # ]
-        # res = torch.stack(res)
-        # res[0] = 0.0
+        res_factor = infection_gamma_scaling_factor / max(res.tolist())
+
+        res = res * res_factor
+
         return res
 
 
-def param_model_forward(param_model):
+def param_model_forward(param_model, temporal_ref):
     return param_model.forward()
 
 
 def forward_simulator(
-    param_values, param_info, abm, training_num_steps, devices, save_record: bool = False
+    param_values_all,
+    param_info,
+    use_temporal_params,
+    abm,
+    training_num_steps,
+    devices,
+    save_records: bool = False,
 ):
-    """assumes abm contains only one simulator for covid (one county), and multiple for flu (multiple counties)"""
-    num_counties = 1
-    param_values = param_values.squeeze(0)
     predictions = []
     all_records = []
+
+    param_values_all = param_values_all.to(abm.device)
+
     for time_step in range(training_num_steps):
+        if use_temporal_params:
+            param_values = param_values_all[0, time_step, :].to(abm.device)
+        else:
+            param_values = param_values_all
+
         proc_record, pred_t = abm.step(
             time_step,
-            param_values.to(abm.device),
+            param_values,
             param_info,
             training_num_steps,
             debug=False,
-            save_record=save_record,
+            save_records=save_records,
         )
 
         pred_t = pred_t.type(torch.float64)
         predictions.append(pred_t.to(devices[0]))
+        all_records.append(proc_record)
 
-        if save_record:
-            all_records.append(proc_record)
-    # Warm-up period must be excluded: warm-up period is usually
-    # equals to infected_to_recovered_or_death_time, we need to remove it since
-    # it is not generated by the model (e.g., people gradually die over time). In contrast,
-    # the death after warm-up will suddenly emerge from the initial infection.
-    predictions = torch.stack(predictions, 0).reshape(1, -1)  # num counties, seq len
-    predictions = predictions.reshape(num_counties, -1)
+    predictions = torch.stack(predictions, 0).reshape(1, -1)
 
-    if save_record:
+    if any(item is None for item in all_records):
+        all_records = None
+    else:
         all_records = array(all_records)
 
-    return {"prediction": predictions.unsqueeze(2), "all_records": all_records}
+    return {"prediction": predictions, "all_records": all_records}
 
 
 def build_simulator(

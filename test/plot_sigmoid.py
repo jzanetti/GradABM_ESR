@@ -8,17 +8,18 @@ def sigmoid(x):
 
 
 # Generate x values
-x = np.linspace(-100, -10, 100)
+x = np.linspace(-10, 10, 100)
 
 # Compute y values using the sigmoid function
 y = sigmoid(x)
+# y = np.maximum(0, x)
 
-y0 = (y - y.min()) / (y.max() - y.min())
+# y0 = (y - y.min()) / (y.max() - y.min())
 
 
 # Create the plot
 plt.plot(x, y, label="orig")
-plt.plot(x, y0, label="scaled")
+# plt.plot(x, y0, label="scaled")
 plt.title("Sigmoid Function")
 plt.xlabel("x")
 plt.legend()

@@ -1,6 +1,6 @@
 import torch
+from torch.optim.lr_scheduler import StepLR
 
-from model import BEST_LOSS
 from model.abm import build_simulator, forward_simulator, param_model_forward
 from model.diags import plot_diags
 from model.inputs import create_agents, read_infection_cfg, train_data_wrapper
@@ -10,16 +10,26 @@ from model.utils import get_loss_func, postproc
 
 torch.autograd.set_detect_anomaly(True)
 
-# device = torch.device("cpu")
+# -------------------------------
+# Parameters:
+# -------------------------------
 device = torch.device(f"cuda:0")
-remove_warm_up = True
+remove_warm_up = False
 use_loss_scaler = False
+use_adaptive_lr = False
+use_temporal_params = True
+
+num_epochs = 100
+learning_rate = 0.01
+opt_method = "sgd"
+loss_method = "mse"  # mse, mspe
+
 # -------------------------------
 # Read data:
 # -------------------------------
-y_path = "data/exp1/targets_test2.csv"
-agent_path = "data/exp1/agents.csv"
-interaction_graph_path = "data/exp1/interaction_graph_cfg.csv"
+y_path = "data/exp2/target_test1.csv"
+agent_path = "data/exp2/agents.csv"
+interaction_graph_path = "data/exp2/interaction_graph_cfg.csv"
 
 # -------------------------------
 # Read configuration:
@@ -47,17 +57,18 @@ infection_cfg = read_infection_cfg(infection_cfg_path)
 
 
 print("Step 4: Creating initial parameters (to be trained) ...")
-param_model = create_param_model(learnabl_param_cfg_path, device)
-
+param_model = create_param_model(
+    learnabl_param_cfg_path, device, use_temporal_params=use_temporal_params, use_rnn=False
+)
 
 print("Step 5: Creating loss function ...")
 loss_def = get_loss_func(
     param_model,
     train_loader["total_timesteps"],
     device,
-    lr=0.1,
-    opt_method="rmsp",
-    loss_method="mspe",
+    lr=learning_rate,
+    opt_method=opt_method,
+    loss_method=loss_method,
 )
 
 print("Step 6: Building ABM ...")
@@ -66,7 +77,10 @@ abm = build_simulator([device], all_agents, all_interactions, infection_cfg)
 print("Step 7: Getting parameters ...")
 param_info = param_model.param_info()
 
-num_epochs = 100
+print("Step 8: Adapative learning rate ...")
+if use_adaptive_lr:
+    lr_scheduler = StepLR(loss_def["opt"], step_size=20, gamma=0.1)
+
 epoch_loss_list = []
 param_values_list = []
 
@@ -74,49 +88,50 @@ if use_loss_scaler:
     scaler = torch.cuda.amp.GradScaler()
 
 for epi in range(num_epochs):
-    epoch_loss = 0
-    for batch, y in enumerate(train_loader["train_dataset"]):
-        y = y.to(device)
-        total_timesteps = y.shape[1]
-        param_values = param_model_forward(param_model)
+    target = train_loader["train_dataset"].dataset.y.to(device)
 
-        save_record = False
-        if epi == num_epochs - 1:
-            save_record = True
+    if use_temporal_params:
+        param_values_all = param_model.forward(target, device)
+    else:
+        param_values_all = param_model.forward()
 
-        predictions = forward_simulator(
-            param_values,
-            param_info,
-            abm,
-            train_loader["total_timesteps"],
-            [device],
-            save_record=save_record,
-        )
+    predictions = forward_simulator(
+        param_values_all,
+        param_info,
+        use_temporal_params,
+        abm,
+        train_loader["total_timesteps"],
+        [device],
+        save_records=(epi == num_epochs - 1),
+    )
 
-        output = postproc(param_model, predictions, y, remove_warm_up)
+    output = postproc(param_model, predictions, target, remove_warm_up)
 
-        loss = loss_def["loss_func"](output["y"].sum(), output["pred"]["prediction"].sum())
+    loss = loss_def["loss_func"](output["y"], output["pred"])
 
-        if use_loss_scaler:
-            scaler.scale(loss).backward()
-            scaler.step(loss_def["opt"])
-            scaler.update()
-        else:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(param_model.parameters(), 10.0)
-            loss_def["opt"].step()
+    if use_loss_scaler:
+        scaler.scale(loss).backward()
+        scaler.step(loss_def["opt"])
+        scaler.update()
+    else:
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(param_model.parameters(), 10.0)
+        loss_def["opt"].step()
 
-        loss_def["opt"].zero_grad(set_to_none=True)
+    if use_adaptive_lr:
+        lr_scheduler.step()
 
-        epoch_loss += torch.sqrt(loss.detach()).item()
+    loss_def["opt"].zero_grad(set_to_none=True)
 
+    epoch_loss = loss.detach().item()
+    current_lr = loss_def["opt"].param_groups[0]["lr"]
     # print(param_values)
-    print(f"{epi}: {epoch_loss}, {param_values}")
+    print(f"{epi}: Loss: {round(epoch_loss, 2)}; Lr: {current_lr}")
 
     epoch_loss_list.append(epoch_loss)
-    param_values_list.append(param_values)
+    # param_values_list.append(param_values)
 
-
+print(param_values_all)
 plot_diags(output, epoch_loss_list)
 
 
