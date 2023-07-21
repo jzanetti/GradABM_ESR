@@ -1,26 +1,29 @@
 import torch.nn as nn
 import torch.nn.init as torch_init
-from torch import device as torch_device
-from torch import rand as torch_rand
 from torch import tensor as torch_tensor
 from torch import zeros as torch_zeros
 from yaml import safe_load as yaml_load
 
+from model import DEVICE, USE_RNN, USE_TEMPORAL_PARAMS
+from utils.utils import read_cfg
 
-def create_param_model(
-    learnable_param_cfg_path: str,
-    device: torch_device,
-    use_temporal_params: bool = False,
-    use_rnn: bool = True,
-):
-    with open(learnable_param_cfg_path, "r") as fid:
-        learnable_param = yaml_load(fid)
 
+def param_model_forward(param_model, target):
+    if USE_TEMPORAL_PARAMS:
+        param_values_all = param_model.forward(target, DEVICE)
+    else:
+        param_values_all = param_model.forward()
+
+    return param_values_all
+
+
+def create_param_model(learnable_param_cfg_path: str):
+    learnable_param = read_cfg(learnable_param_cfg_path)
     params = get_params(learnable_param)
 
-    if use_temporal_params:
-        return TemporalNN(params, device, use_rnn=use_rnn).to(device)
-    return LearnableParams(params, device).to(device)
+    if USE_TEMPORAL_PARAMS:
+        return TemporalNN(params, DEVICE).to(DEVICE)
+    return LearnableParams(params, DEVICE).to(DEVICE)
 
 
 def get_params(learnable_param: dict) -> dict:
@@ -61,14 +64,12 @@ def get_params(learnable_param: dict) -> dict:
 
 
 class TemporalNN(nn.Module):
-    def __init__(
-        self, params, device, input_size=1, hidden_size=240, num_layers=30, use_rnn=False
-    ):
+    def __init__(self, params, device, input_size=1, hidden_size=240, num_layers=30):
         super(TemporalNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.use_rnn = use_rnn
-        if use_rnn:
+        self.use_rnn = USE_RNN
+        if USE_RNN:
             self.temporal_model = nn.RNN(
                 input_size,
                 hidden_size,

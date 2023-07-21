@@ -1,3 +1,8 @@
+from os import makedirs
+from os.path import exists, join
+from pickle import dump as pickle_dump
+from pickle import load as pickle_load
+
 from matplotlib.pyplot import (
     close,
     legend,
@@ -8,12 +13,31 @@ from matplotlib.pyplot import (
     xlabel,
     ylabel,
 )
-from numpy import NaN, array, count_nonzero
+from numpy import array, count_nonzero
+from torch import load as torch_load
+from torch import save as torch_save
 
 from model import STAGE_INDEX
 
 
-def plot_diags(output, epoch_loss_list):
+def save_outputs(param_model, workdir):
+    if not exists(workdir):
+        makedirs(workdir)
+
+    torch_save(param_model["param_model"], join(workdir, "param_model.model"))
+    pickle_dump(param_model["params"], open(join(workdir, "params.p"), "wb"))
+    pickle_dump(param_model["output_info"], open(join(workdir, "output_info.p"), "wb"))
+
+
+def load_outputs(param_path: str, output_info_path: str, param_model_path: str):
+    param = pickle_load(open(param_path, "rb"))
+    output_info = pickle_load(open(output_info_path, "rb"))
+    param_model = torch_load(param_model_path)
+    # output = pickle_load(open("output.p", "rb"))
+    return {"param": param, "output_info": output_info, "param_model": param_model}
+
+
+def plot_diags(workdir: str, output, epoch_loss_list, apply_norm: bool = False):
     my_pred = output["pred"].tolist()
 
     # ----------------------------
@@ -36,7 +60,7 @@ def plot_diags(output, epoch_loss_list):
     title("Agent symptom")
     legend()
     tight_layout()
-    savefig("Agents.png", bbox_inches="tight")
+    savefig(join(workdir, "Agents.png"), bbox_inches="tight")
     close()
 
     # ----------------------------
@@ -47,14 +71,17 @@ def plot_diags(output, epoch_loss_list):
     ylabel("Loss")
     title("Loss")
     tight_layout()
-    savefig("loss.png", bbox_inches="tight")
+    savefig(join(workdir, "loss.png"), bbox_inches="tight")
     close()
 
     # ----------------------------
     # Plot Prediction/Truth
     # ----------------------------
-
     my_targ = output["y"].tolist()
+
+    if apply_norm:
+        my_pred = array(my_pred) / max(my_pred)
+        my_targ = array(my_targ) / max(my_targ)
     plot(my_pred, label="Prediction")
     plot(my_targ, label="Truth")
     legend()
@@ -62,5 +89,5 @@ def plot_diags(output, epoch_loss_list):
     xlabel("Time")
     ylabel("Data")
     tight_layout()
-    savefig("prediction_vs_truth.png", bbox_inches="tight")
+    savefig(join(workdir, "prediction_vs_truth.png"), bbox_inches="tight")
     close()
