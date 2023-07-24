@@ -17,8 +17,7 @@ def param_model_forward(param_model, target):
     return param_values_all
 
 
-def create_param_model(learnable_param_cfg_path: str):
-    learnable_param = read_cfg(learnable_param_cfg_path)
+def create_param_model(learnable_param: dict):
     params = get_params(learnable_param)
 
     if USE_TEMPORAL_PARAMS:
@@ -26,7 +25,7 @@ def create_param_model(learnable_param_cfg_path: str):
     return LearnableParams(params, DEVICE).to(DEVICE)
 
 
-def get_params(learnable_param: dict) -> dict:
+def get_params(learnable_params: dict) -> dict:
     """Get parmaters information
 
     Args:
@@ -40,19 +39,16 @@ def get_params(learnable_param: dict) -> dict:
     param_min = []
     param_max = []
     learnable_params_list = []
-    for param_name in learnable_param["learnable_params"]:
-        if learnable_param["learnable_params"][param_name]["enable"]:
+    for param_name in learnable_params:
+        if learnable_params[param_name]["enable"]:
             learnable_param_order.append(param_name)
-            param_min.append(learnable_param["learnable_params"][param_name]["min"])
-            param_max.append(learnable_param["learnable_params"][param_name]["max"])
+            param_min.append(learnable_params[param_name]["min"])
+            param_max.append(learnable_params[param_name]["max"])
             learnable_params_list.append(
-                learnable_param["learnable_params"][param_name]["default"]
-                / learnable_param["learnable_params"][param_name]["max"]
+                learnable_params[param_name]["default"] / learnable_params[param_name]["max"]
             )
         else:
-            learnable_param_default[param_name] = learnable_param["learnable_params"][param_name][
-                "default"
-            ]
+            learnable_param_default[param_name] = learnable_params[param_name]["default"]
 
     return {
         "learnable_param_order": learnable_param_order,

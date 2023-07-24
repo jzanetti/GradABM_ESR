@@ -11,7 +11,7 @@ import argparse
 from os import makedirs
 from os.path import exists, join
 
-from model import INITIAL_LOSS, NUM_EPOCHS
+from model import INITIAL_LOSS
 from model.abm import build_abm, forward_abm
 from model.diags import save_outputs
 from model.loss_func import get_loss_func, loss_optimization
@@ -45,65 +45,65 @@ def setup_parser():
         required=True,
         help="Configuration path for the model (e.g., scaling factor), e.g., gradadm_exp.cfg",
     )
-    parser.add_argument(
-        "--learnable_param", required=True, help="Learnable paramters configuration"
-    )
+    # parser.add_argument(
+    #    "--learnable_param", required=True, help="Learnable paramters configuration"
+    # )
     parser.add_argument("--agents_data", required=True, help="Agents data in parquet")
     parser.add_argument("--interaction_data", required=True, help="Interaction data in parquet")
     parser.add_argument("--target_data", required=True, help="Target data in CSV")
+
     return parser.parse_args(
         [
             "--exp",
             "test1",
             "--workdir",
-            "/tmp/gradabm_esr",
+            "/tmp/gradabm_esr_auckland",
             "--cfg",
-            "cfg/sample_cfg/gradam_exp.yml",
-            "--learnable_param",
-            "cfg/sample_cfg/learnable_param.yml",
+            "data/measles/auckland/gradam_exp.yml",
+            # "--learnable_param",
+            # "data/measles/auckland/learnable_param.yml",
             "--agents_data",
-            "/tmp/gradabm_esr_input/agents.parquet",
+            "data/measles/auckland/inputs/agents.parquet",
             "--interaction_data",
-            "/tmp/gradabm_esr_input/interaction_graph_cfg.parquet",
+            "data/measles/auckland/inputs/interaction_graph_cfg_member_0.parquet",
             "--target_data",
-            "data/exp4/targets3.csv",
+            "data/measles/auckland/inputs/output.csv",
         ]
     )
 
 
-def main():
+def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
     """Run June model for New Zealand"""
-    args = setup_parser()
 
-    if not exists(args.workdir):
-        makedirs(args.workdir)
+    if not exists(workdir):
+        makedirs(workdir)
 
-    logger = setup_logging(args.workdir)
+    logger = setup_logging(workdir)
 
     logger.info("Reading configuration ...")
-    cfg = read_cfg(args.cfg)
+    cfg = read_cfg(cfg)
 
     logger.info("Preparing model running environment ...")
     prep_env()
 
     logger.info("Getting model input ...")
     model_inputs = prep_model_inputs(
-        args.agents_data, args.interaction_data, args.target_data, cfg["interaction"]
+        agents_data, interaction_data, target_data, cfg["interaction"]
     )
 
     logger.info("Building ABM ...")
     abm = build_abm(model_inputs["all_agents"], model_inputs["all_interactions"], cfg["infection"])
 
     logger.info("Creating initial parameters (to be trained) ...")
-    param_model = create_param_model(args.learnable_param)
+    param_model = create_param_model(cfg["learnable_params"])
 
     logger.info("Creating loss function ...")
-    loss_def = get_loss_func(param_model, model_inputs["total_timesteps"])
+    loss_def = get_loss_func(param_model, model_inputs["total_timesteps"], cfg["optimization"])
 
     epoch_loss_list = []
     smallest_loss = INITIAL_LOSS
 
-    for epi in range(NUM_EPOCHS):
+    for epi in range(cfg["optimization"]["num_epochs"]):
         param_values_all = param_model_forward(param_model, model_inputs["target"])
 
         predictions = forward_abm(
@@ -118,7 +118,7 @@ def main():
 
         loss = loss_def["loss_func"](output["y"], output["pred"])
 
-        epoch_loss = loss_optimization(loss, param_model, loss_def)
+        epoch_loss = loss_optimization(loss, param_model, loss_def, cfg["optimization"])
 
         logger.info(
             f"{epi}: Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; Lr: {round(loss_def['opt'].param_groups[0]['lr'], 2)}"
@@ -144,11 +144,12 @@ def main():
             "params": {"param_with_smallest_loss": param_with_smallest_loss},
             "param_model": param_model,
         },
-        join(args.workdir, args.exp),
+        join(workdir, exp),
     )
 
     logger.info("Job done ...")
 
 
 if __name__ == "__main__":
-    main()
+    args = setup_parser()
+    main(args.workdir, args.exp, args.agents_data, args.interaction_data, args.target_data)

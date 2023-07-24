@@ -1,5 +1,19 @@
 name: test1
-temporal_res: day
+temporal_res: week
+
+
+# -------------------------------------------
+# Section 0: basic optimization
+# -------------------------------------------
+optimization:
+  learning_rate:
+    basic_lr: 0.01
+    adaptive_lr:
+      enable: True
+      step: 15
+      reduction_ratio: 0.9
+  num_epochs: 50
+  clip_grad_norm: 3.0
 
 # -------------------------------------------
 # Section 1: Infection scaling factors
@@ -76,29 +90,29 @@ learnable_params:
     default: 1.0 # 5.0
   mortality_rate:
     enable: true
-    min: 0.1
+    min: 0.01
     max: 30.0
     default: 1.0
   initial_infected_percentage:
     enable: true
     min: 0.001
-    max: 0.05
-    default: 0.005
+    max: 0.1
+    default: 0.025
   random_infected_percentgae:
-    enable: true
-    min: 0.0
-    max: 1.0
-    default: 0.1
+    enable: false
+    min: 0.05
+    max: 0.1
+    default: 0.0
   exposed_to_infected_time:
     enable: true
-    min: 1.0
-    max: 3.0
+    min: 0.0
+    max: 0.75
     default: 2.0
   infected_to_recovered_or_death_time:
     enable: true
-    min: 3.0
-    max: 10.0
-    default: 5.0
+    min: 0.75
+    max: 2.0
+    default: 1.5
   infection_gamma_shape:
     enable: true
     min: 1.0
@@ -109,8 +123,8 @@ learnable_params:
     min: 0.05
     max: 30.0
     default: 10.0
-  infection_gamma_scaling_factor:
+  infection_gamma_scaling_factor: # decide how fast the disease spread
     enable: true
-    min: 0.3
-    max: 1.0
-    default: 0.5
+    min: 0.05
+    max: 0.1
+    default: 0.08

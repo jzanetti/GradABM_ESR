@@ -15,3 +15,5 @@ AGE_INDEX = {"0-10": 0, "11-20": 1, "21-30": 2, "31-40": 3, "41-50": 4, "51-60":
 ETHNICITY_INDEX = {"European": 0, "Maori": 1, "Pacific": 2, "Asian": 3, "MELAA": 4}
 
 SEX_INDEX = {"m": 0, "f": 1}
+
+INTERACTION_ENS_MEMBERS = 5

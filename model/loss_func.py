@@ -11,14 +11,7 @@ from torchmetrics.regression import (
     MeanSquaredError,
 )
 
-from model import (
-    ADAPTIVE_LEARNING_RATE,
-    DEVICE,
-    LEARNING_RATE,
-    OPT_METHOD,
-    OPT_METRIC,
-    USE_LOSS_SCALER,
-)
+from model import DEVICE, OPT_METHOD, OPT_METRIC, USE_LOSS_SCALER
 
 logger = getLogger()
 
@@ -26,6 +19,7 @@ logger = getLogger()
 def get_loss_func(
     param_model,
     total_timesteps,
+    opt_cfg: dict,
     weight_decay: float = 0.0,  # 0.01
 ):
     """Obtain loss function
@@ -38,10 +32,11 @@ def get_loss_func(
     Returns:
         _type_: _description_
     """
+    basic_lr = opt_cfg["learning_rate"]["basic_lr"]
     if OPT_METHOD == "adam":
         opt = Adam(
             filter(lambda p: p.requires_grad, param_model.parameters()),
-            lr=LEARNING_RATE,
+            lr=basic_lr,
             weight_decay=weight_decay,
             differentiable=False,
         )  # loss_fn = NegativeCosineSimilarityLoss()
@@ -49,7 +44,7 @@ def get_loss_func(
     elif OPT_METHOD == "sgd":
         opt = SGD(
             filter(lambda p: p.requires_grad, param_model.parameters()),
-            lr=LEARNING_RATE,
+            lr=basic_lr,
             weight_decay=weight_decay,
             differentiable=True,
         )
@@ -57,7 +52,7 @@ def get_loss_func(
     elif OPT_METHOD == "adag":
         opt = Adagrad(
             filter(lambda p: p.requires_grad, param_model.parameters()),
-            lr=LEARNING_RATE,
+            lr=basic_lr,
             weight_decay=weight_decay,
             differentiable=False,
         )
@@ -65,7 +60,7 @@ def get_loss_func(
     elif OPT_METHOD == "rmsp":
         opt = RMSprop(
             filter(lambda p: p.requires_grad, param_model.parameters()),
-            lr=LEARNING_RATE,
+            lr=basic_lr,
             weight_decay=weight_decay,
             differentiable=False,
         )
@@ -73,7 +68,7 @@ def get_loss_func(
     elif OPT_METHOD == "adad":
         opt = Adadelta(
             filter(lambda p: p.requires_grad, param_model.parameters()),
-            lr=LEARNING_RATE,
+            lr=basic_lr,
             weight_decay=weight_decay,
             differentiable=False,
         )
@@ -88,11 +83,11 @@ def get_loss_func(
         loss_func = CosineSimilarity().to(DEVICE)
 
     lr_scheduler = None
-    if ADAPTIVE_LEARNING_RATE["enable"]:
+    if opt_cfg["learning_rate"]["adaptive_lr"]["enable"]:
         lr_scheduler = StepLR(
             opt,
-            step_size=ADAPTIVE_LEARNING_RATE["step"],
-            gamma=ADAPTIVE_LEARNING_RATE["reduction_ratio"],
+            step_size=opt_cfg["learning_rate"]["adaptive_lr"]["step"],
+            gamma=opt_cfg["learning_rate"]["adaptive_lr"]["reduction_ratio"],
         )
 
     loss_func_scaler = None
@@ -108,10 +103,10 @@ def get_loss_func(
     }
 
 
-def loss_optimization(loss, param_model, loss_def: dict):
+def loss_optimization(loss, param_model, loss_def: dict, cfg_opt: dict):
     if loss_def["loss_func_scaler"] is None:
         loss.backward()
-        clip_grad_norm_(param_model.parameters(), 10.0)
+        clip_grad_norm_(param_model.parameters(), cfg_opt["clip_grad_norm"])
         loss_def["opt"].step()
     else:
         loss_def["loss_func_scaler"].scale(loss).backward()

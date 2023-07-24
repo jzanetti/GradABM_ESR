@@ -1,5 +1,5 @@
 import torch.nn.functional as F
-from numpy import array, where
+from numpy import array, isnan, where
 from numpy.random import choice
 from torch import clone as torch_clone
 from torch import hstack as torch_hstack
@@ -39,9 +39,15 @@ class SEIRMProgression(DiseaseProgression):
         random_infected_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
         p = torch_hstack((random_infected_p, 1 - random_infected_p))
         cat_logits = torch_log(p + 1e-9)
-        agents_stages_with_random_infected = F.gumbel_softmax(
-            logits=cat_logits, tau=1, dim=1, hard=True
-        )[:, 0]
+
+        while True:
+            agents_stages_with_random_infected = F.gumbel_softmax(
+                logits=cat_logits, tau=1, dim=1, hard=True
+            )[:, 0]
+
+            if not isnan(agents_stages_with_random_infected.cpu().clone().detach().numpy()).any():
+                break
+
         agents_stages_with_random_infected *= STAGE_INDEX["infected"]
         agents_stages = agents_stages + agents_stages_with_random_infected
         # print(t, agents_stages_with_random_infected.tolist().count(2))
@@ -173,4 +179,5 @@ class SEIRMProgression(DiseaseProgression):
         )
 
         current_stages = newly_exposed_today * STAGE_INDEX["exposed"] + stage_progression
+
         return current_stages

@@ -1,4 +1,18 @@
 name: test1
+temporal_res: week
+
+# -------------------------------------------
+# Section 0: basic optimization
+# -------------------------------------------
+optimization:
+  learning_rate:
+    basic_lr: 0.1
+    adaptive_lr:
+      enable: True
+      step: 15
+      reduction_ratio: 0.9
+  num_epochs: 50
+  clip_grad_norm: 10.0
 
 # -------------------------------------------
 # Section 1: Infection scaling factors

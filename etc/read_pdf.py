@@ -84,6 +84,8 @@ merged_df = reduce(lambda left, right: pd.merge(left, right, on="Region", how="o
 columns_to_remove = merged_df.filter(like="_y").columns
 merged_df = merged_df.drop(columns=columns_to_remove)
 merged_df.columns = [col.rstrip("_x") if col.endswith("_x") else col for col in merged_df.columns]
+
+merged_df = merged_df[merged_df["Region"] != "Hawke’s Bay"]
 merged_df.to_parquet("measles_cases_2019.parquet")
 """
 merged_df.set_index("Region", inplace=True)

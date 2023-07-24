@@ -37,25 +37,36 @@ def load_outputs(param_path: str, output_info_path: str, param_model_path: str):
     return {"param": param, "output_info": output_info, "param_model": param_model}
 
 
-def plot_diags(workdir: str, output, epoch_loss_list, apply_norm: bool = False):
-    my_pred = output["pred"].tolist()
+def plot_diags(workdir: str, outputs, epoch_loss_lists, temporal_res, apply_norm: bool = False):
+    for i, output in enumerate(outputs):
+        my_pred = output["pred"].tolist()
 
-    # ----------------------------
-    # Plot agents
-    # ----------------------------
-    susceptible_counts = count_nonzero(output["all_records"] == STAGE_INDEX["susceptible"], axis=1)
-    exposed_counts = count_nonzero(output["all_records"] == STAGE_INDEX["exposed"], axis=1)
-    infected_counts = count_nonzero(output["all_records"] == STAGE_INDEX["infected"], axis=1)
-    recovered_or_death_counts = count_nonzero(
-        output["all_records"] == STAGE_INDEX["recovered_or_death"], axis=1
-    )
+        # ----------------------------
+        # Plot agents
+        # ----------------------------
+        susceptible_counts = count_nonzero(
+            output["all_records"] == STAGE_INDEX["susceptible"], axis=1
+        )
+        exposed_counts = count_nonzero(output["all_records"] == STAGE_INDEX["exposed"], axis=1)
+        infected_counts = count_nonzero(output["all_records"] == STAGE_INDEX["infected"], axis=1)
+        recovered_or_death_counts = count_nonzero(
+            output["all_records"] == STAGE_INDEX["recovered_or_death"], axis=1
+        )
 
-    plot(susceptible_counts, label="Susceptible")
-    plot(exposed_counts, label="Exposed")
-    plot(infected_counts, label="Infected")
-    plot(recovered_or_death_counts, label="Recovery + Death")
-    plot(my_pred, label="Death")
-    xlabel("Days")
+        if i == 0:
+            plot(susceptible_counts, label="Susceptible", color="c")
+            plot(exposed_counts, label="Exposed", color="g")
+            plot(infected_counts, label="Infected", color="r")
+            plot(recovered_or_death_counts, label="Recovery + Death", color="b")
+            plot(my_pred, label="Death", color="m")
+        else:
+            plot(susceptible_counts, color="c")
+            plot(exposed_counts, color="g")
+            plot(infected_counts, color="r")
+            plot(recovered_or_death_counts, color="b")
+            plot(my_pred, color="m")
+
+    xlabel(temporal_res)
     ylabel("Number of agents")
     title("Agent symptom")
     legend()
@@ -66,7 +77,8 @@ def plot_diags(workdir: str, output, epoch_loss_list, apply_norm: bool = False):
     # ----------------------------
     # Plot losses
     # ----------------------------
-    plot(epoch_loss_list)
+    for epoch_loss_list in epoch_loss_lists:
+        plot(epoch_loss_list, "k")
     xlabel("Epoch")
     ylabel("Loss")
     title("Loss")
@@ -77,17 +89,19 @@ def plot_diags(workdir: str, output, epoch_loss_list, apply_norm: bool = False):
     # ----------------------------
     # Plot Prediction/Truth
     # ----------------------------
-    my_targ = output["y"].tolist()
+    for i, output in enumerate(outputs):
+        my_pred = output["pred"].tolist()
+        if i == 0:
+            my_targ = output["y"].tolist()
+            plot(my_targ, color="k", linewidth=2.0, label="Truth")
+            plot(my_pred, linewidth=1.0, linestyle="--")
+        else:
+            plot(my_pred, linewidth=1.0, linestyle="--")
 
-    if apply_norm:
-        my_pred = array(my_pred) / max(my_pred)
-        my_targ = array(my_targ) / max(my_targ)
-    plot(my_pred, label="Prediction")
-    plot(my_targ, label="Truth")
     legend()
     title(f"Prediction ({round(sum(my_pred),2)}) vs Truth ({round(sum(my_targ), 2)})")
-    xlabel("Time")
-    ylabel("Data")
+    xlabel(f"{temporal_res}s")
+    ylabel("Cases")
     tight_layout()
     savefig(join(workdir, "prediction_vs_truth.png"), bbox_inches="tight")
     close()

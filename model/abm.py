@@ -3,7 +3,7 @@ from copy import copy as shallow_copy
 
 import torch
 import torch.nn.functional as F
-from numpy import array, where
+from numpy import array, isnan, where
 from numpy.random import choice
 from scipy.stats import gamma as stats_gamma
 from torch.distributions import Gamma as torch_gamma
@@ -24,7 +24,8 @@ class GradABM:
 
         # Getting agents
         agents_df = self.params["all_agents"]
-        self.agents_ix = torch.arange(0, len(agents_df)).long().to(self.device)
+        # self.agents_id = torch.arange(0, len(agents_df)).long().to(self.device)
+        self.agents_id = torch.tensor(agents_df["id"].to_numpy()).long().to(self.device)
         self.agents_ages = torch.tensor(agents_df["age"].to_numpy()).long().to(self.device)
         self.agents_sex = torch.tensor(agents_df["sex"].to_numpy()).long().to(self.device)
         self.agents_ethnicity = (
@@ -117,9 +118,14 @@ class GradABM:
         prob_not_infected = torch.exp(-lam_t)
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
-        potentially_exposed_today = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[
-            :, 0
-        ]  # first column is prob of infections
+
+        while True:
+            potentially_exposed_today = F.gumbel_softmax(
+                logits=cat_logits, tau=1, hard=True, dim=1
+            )[:, 0]
+
+            if not isnan(potentially_exposed_today.cpu().clone().detach().numpy()).any():
+                break
 
         newly_exposed_today = self.DPM.get_newly_exposed(
             self.current_stages, potentially_exposed_today
@@ -223,8 +229,7 @@ class GradABM:
         debug: bool = False,
         save_records: bool = False,
     ):
-        """Send as input: r0_value [hidden state] -> trainable parameters  and t is the time-step of simulation."""
-
+        """Send a   s input: r0_value [hidden state] -> trainable parameters  and t is the time-step of simulation."""
         proc_params = self.get_params(param_info, param_t)
 
         if t == 0:
@@ -290,7 +295,6 @@ class GradABM:
         )
 
         self.current_stages = next_stages
-
         # update for newly exposed agents {exposed_today}
         self.agents_infected_index[newly_exposed_today.bool()] = True
         self.agents_infected_time[newly_exposed_today.bool()] = t
