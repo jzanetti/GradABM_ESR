@@ -1,6 +1,47 @@
 from torch import gather as torch_gather
+from torch import manual_seed as torch_seed
+from torch import nonzero as torch_nonzero
+from torch import ones_like as torch_ones_like
+from torch import randperm as torch_randperm
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
+
+from model import TORCH_SEED_NUM
+
+
+def infected_case_isolation(
+    infected_idx, isolation_compliance_rate, isolation_intensity, min_cases: int = 10
+):
+    """Create infected case isolation scaling factor
+
+    Args:
+        infected_idx: Infected case index
+
+    Returns:
+        _type_: Scaling factor for infected case
+    """
+    if isolation_compliance_rate is None:
+        return torch_ones_like(infected_idx)
+
+    # infected agents (0.0: uninfected; 1.0: infected)
+    infected_agents = infected_idx.float()
+    infected_agents_index = torch_nonzero(infected_agents == 1.0).squeeze()
+    infected_agents_length = len(infected_agents_index)
+
+    if infected_agents_length < min_cases:
+        return torch_ones_like(infected_agents)
+
+    isolated_agents_length = int(isolation_compliance_rate * len(infected_agents_index))
+
+    if TORCH_SEED_NUM is not None:
+        torch_seed(TORCH_SEED_NUM["isolation_policy"])
+    isolated_agents_index = torch_randperm(infected_agents_length)[:isolated_agents_length]
+    isolated_mask = torch_zeros_like(infected_agents)
+    isolated_mask[infected_agents_index[isolated_agents_index]] = 1.0 - isolation_intensity
+
+    isolated_sf = 1.0 - isolated_mask
+
+    return isolated_sf
 
 
 def lam(
@@ -15,6 +56,7 @@ def lam(
     SFSusceptibility_vaccine,
     SFInfector,
     lam_gamma_integrals,
+    outbreak_ctl_cfg,
 ):
     """
     self.agents_ages,  # 0: age
@@ -32,16 +74,23 @@ def lam(
         * SFSusceptibility_sex[x_i[:, 1].long()]
         * SFSusceptibility_ethnicity[x_i[:, 2].long()]
         * SFSusceptibility_vaccine[x_i[:, 3].long()]
-    )  # age * sex * ethnicity dependant
+    )  # age * sex * ethnicity dependant * vaccine
+
     A_s_i = SFInfector[x_j[:, 4].long()]  # stage dependant
+
     B_n = edge_attr[1, :]
     integrals = torch_zeros_like(B_n)
     infected_idx = x_j[:, 5].bool()
     infected_times = t - x_j[infected_idx, 6]
 
-    integrals[infected_idx] = lam_gamma_integrals[
-        infected_times.long()
-    ]  #:,2 is infected index and :,3 is infected time
+    integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
+
+    # Isolate infected cases
+    isolated_sf = infected_case_isolation(
+        infected_idx,
+        outbreak_ctl_cfg["isolation"]["compliance_rate"],
+        outbreak_ctl_cfg["isolation"]["isolation_sf"],
+    )
 
     edge_network_numbers = edge_attr[
         0, :
@@ -76,7 +125,12 @@ def lam(
     #  - integrals: 1.52
     #  - B_n: 0.1
     #  - I_bar: 2
-    res = R * S_A_s * A_s_i * B_n * integrals / I_bar  # Edge attribute 1 is B_n
+    res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
+
+    # import random
+
+    # random_number_test = random.randint(0, 100)
+    # res[random_number_test] = 0.001
 
     return res.view(-1, 1)
 
@@ -103,7 +157,7 @@ class InfectionNetwork(MessagePassing):
         # self.lam_gamma_integrals = lam_gamma_integrals
         self.device = device
 
-    def forward(self, data, r0_value_trainable, lam_gamma_integrals):
+    def forward(self, data, r0_value_trainable, lam_gamma_integrals, outbreak_ctl_cfg):
         x = data.x
         edge_index = data.edge_index
         edge_attr = data.edge_attr
@@ -120,6 +174,7 @@ class InfectionNetwork(MessagePassing):
             SFSusceptibility_vaccine=self.SFSusceptibility_vaccine,
             SFInfector=self.SFInfector,
             lam_gamma_integrals=lam_gamma_integrals,
+            outbreak_ctl_cfg=outbreak_ctl_cfg,
         )
 
     def message(
@@ -135,6 +190,7 @@ class InfectionNetwork(MessagePassing):
         SFSusceptibility_vaccine,
         SFInfector,
         lam_gamma_integrals,
+        outbreak_ctl_cfg,
     ):
         # x_j has shape [E, in_channels]
         tmp = self.lam(
@@ -149,5 +205,6 @@ class InfectionNetwork(MessagePassing):
             SFSusceptibility_vaccine,
             SFInfector,
             lam_gamma_integrals,
+            outbreak_ctl_cfg,
         )  # tmp has shape [E, 2 * in_channels]
         return tmp

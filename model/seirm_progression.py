@@ -1,14 +1,19 @@
 import torch.nn.functional as F
 from numpy import array, isnan, where
 from numpy.random import choice
+from torch import clamp as torch_clamp
 from torch import clone as torch_clone
+from torch import eq as torch_eq
 from torch import hstack as torch_hstack
 from torch import log as torch_log
+from torch import manual_seed as torch_seed
+from torch import masked_select as torch_masked_select
 from torch import ones as torch_ones
 from torch import ones_like as torch_ones_like
 from torch import sum as torch_sum
+from torch import zeros_like as torch_zeros_like
 
-from model import STAGE_INDEX
+from model import SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
 from model.disease_progression import DiseaseProgression
 
 
@@ -41,6 +46,8 @@ class SEIRMProgression(DiseaseProgression):
         cat_logits = torch_log(p + 1e-9)
 
         while True:
+            if TORCH_SEED_NUM is not None:
+                torch_seed(TORCH_SEED_NUM["random_infected"])
             agents_stages_with_random_infected = F.gumbel_softmax(
                 logits=cat_logits, tau=1, dim=1, hard=True
             )[:, 0]
@@ -67,6 +74,8 @@ class SEIRMProgression(DiseaseProgression):
         )
         p = torch_hstack((prob_infected, 1 - prob_infected))
         cat_logits = torch_log(p + 1e-9)
+        if TORCH_SEED_NUM is not None:
+            torch_seed(TORCH_SEED_NUM["initial_infected"])
         agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
         agents_stages *= STAGE_INDEX["infected"]
         agents_stages = agents_stages.to(device)
@@ -100,6 +109,11 @@ class SEIRMProgression(DiseaseProgression):
 
     def get_newly_exposed(self, current_stages, potentially_exposed_today):
         # we now get the ones that new to exposure
+        # susceptible_mask = self.create_stage_mask(
+        #    current_stages, STAGE_INDEX["susceptible"], bias=1.0
+        # )
+
+        # newly_exposed_today = susceptible_mask * potentially_exposed_today
         newly_exposed_today = (
             current_stages == STAGE_INDEX["susceptible"]
         ) * potentially_exposed_today
@@ -129,7 +143,13 @@ class SEIRMProgression(DiseaseProgression):
         )
 
     def get_target_variables(
-        self, mortality_rate, current_stages, agents_next_stage_times, t, device
+        self,
+        mortality_rate,
+        current_stages,
+        agents_next_stage_times,
+        infected_to_recovered_or_death_time,
+        t,
+        apply_sigmoid=False,
     ):
         def _randomly_assign_death_people(recovered_or_dead_today, death_total_today):
             recovered_or_dead_today_array = array(recovered_or_dead_today.tolist())
@@ -139,26 +159,68 @@ class SEIRMProgression(DiseaseProgression):
 
             return death_indices
 
+        def _apply_sigmoid_to_mask_t(t, agents_next_stage_times_min, agents_next_stage_times_max):
+            import torch
+
+            return torch.sigmoid(10 * (torch.tensor(float(t)) - agents_next_stage_times_min)) * (
+                1 - torch.sigmoid(10 * (torch.tensor(float(t)) - agents_next_stage_times_max))
+            )
+
         agents_next_stage_times_max = agents_next_stage_times + 1.0
+
+        if (
+            t < infected_to_recovered_or_death_time
+        ):  # make sure we have recovered_or_dead_today from t0
+            agents_next_stage_times_min = torch_clamp(
+                agents_next_stage_times - infected_to_recovered_or_death_time, min=0.0
+            )
+        else:
+            agents_next_stage_times_min = torch_clamp(agents_next_stage_times - 0.5, min=0.0)
+
         recovered_or_dead_today = (
             current_stages
             * (current_stages == STAGE_INDEX["infected"])
-            * ((t >= agents_next_stage_times) & (t < agents_next_stage_times_max))
-        ) / STAGE_INDEX[
-            "infected"
-        ]  # agents when stage changes
+            * ((t >= agents_next_stage_times_min) & (t < agents_next_stage_times_max))
+        ) / STAGE_INDEX["infected"]
 
-        death_total_today = (mortality_rate / 100.0) * torch_sum(recovered_or_dead_today)
+        # print(t, recovered_or_dead_today.sum())
+
+        if apply_sigmoid:
+            recovered_or_dead_today = torch_clamp(
+                recovered_or_dead_today, min=SMALL_VALUE
+            ) * _apply_sigmoid_to_mask_t(
+                t, agents_next_stage_times_min, agents_next_stage_times_max
+            )
+
+        death_total_today = (mortality_rate / 100.0) * torch_sum(
+            recovered_or_dead_today
+        ) + SMALL_VALUE
 
         death_indices = _randomly_assign_death_people(recovered_or_dead_today, death_total_today)
 
         return recovered_or_dead_today, death_indices, death_total_today
 
+    def create_stage_mask(self, cur_stage, cur_mask, bias: float = 0.0):
+        cur_mask = torch_eq(cur_stage, cur_mask)
+        selected_elements = torch_masked_select(cur_stage, cur_mask)
+        selected_elements += bias
+
+        output = torch_zeros_like(cur_stage)
+        output[cur_mask] = selected_elements
+        return output
+
     def update_current_stage(
         self, newly_exposed_today, current_stages, agents_next_stage_times, death_indices, t
     ):
         """progress disease: move agents to different disease stage"""
-        agents_next_stage_times_max = agents_next_stage_times + 1.0
+
+        # mask = torch.eq(self.current_stages, STAGE_INDEX["susceptible"])
+        # selected_elements = torch.masked_select(self.current_stages, mask)
+
+        # x = torch.zeros_like(self.current_stages)
+        # x[mask] = selected_elements
+
+        agents_next_stage_times_max = agents_next_stage_times + 0.5
 
         after_exposed = STAGE_INDEX["exposed"] * (t < agents_next_stage_times) + STAGE_INDEX[
             "infected"

@@ -32,7 +32,19 @@ infection:
     vaccine:
       - 1.0 # 0: not vaccined (e.g., 1.0)
       - 0.05 # 1: vaccined (e.g., 0.0001)
-
+    outbreak_ctl:
+      isolation: # for infected cases
+        compliance_rate: 0.5 # float (e.g., 0.9) or None
+        isolation_sf: 0.1 # when we set it to 0.0, isolated case will be completely exlcuded from spread 
+      quarantine: # for exposed cases
+        contact_tracing_coverage: 0.5
+        compliance_rate: 0.5
+      exclusion: # for exposed cases
+        high_risk_settings:
+          - school
+        compliance_rate: 1.0
+      school_closure: # enable if infected case identified
+        enable: true
 # -------------------------------------------
 # Section 2: Interaction number and intensity
 # -------------------------------------------

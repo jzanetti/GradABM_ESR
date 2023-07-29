@@ -6,11 +6,12 @@ import torch.nn.functional as F
 from numpy import array, isnan, where
 from numpy.random import choice
 from scipy.stats import gamma as stats_gamma
+from torch import manual_seed as torch_seed
 from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
-from model import ALL_PARAMS, DEVICE, STAGE_INDEX, USE_TEMPORAL_PARAMS
+from model import ALL_PARAMS, DEVICE, STAGE_INDEX, TORCH_SEED_NUM, USE_TEMPORAL_PARAMS
 from model.infection_network import InfectionNetwork
 from model.seirm_progression import SEIRMProgression
 from utils.utils import round_a_list
@@ -77,6 +78,8 @@ class GradABM:
             .to(self.device)
         )
 
+        self.outbreak_ctl_cfg = self.params["infection_cfg"]["scaling_factor"]["outbreak_ctl"]
+
         self.net = InfectionNetwork(
             self.SFSusceptibility_age,
             self.SFSusceptibility_sex,
@@ -114,18 +117,23 @@ class GradABM:
             agents_mean_interactions=self.agents_mean_interactions_mu,
         )
 
-        lam_t = self.net(agents_data, r0_value, lam_gamma_integrals)
+        lam_t = self.net(agents_data, r0_value, lam_gamma_integrals, self.outbreak_ctl_cfg)
         prob_not_infected = torch.exp(-lam_t)
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
 
         while True:
+            if TORCH_SEED_NUM is not None:
+                torch_seed(TORCH_SEED_NUM["newly_exposed"])
             potentially_exposed_today = F.gumbel_softmax(
                 logits=cat_logits, tau=1, hard=True, dim=1
             )[:, 0]
 
             if not isnan(potentially_exposed_today.cpu().clone().detach().numpy()).any():
                 break
+
+        # if potentially_exposed_today.sum() == 0.0:
+        #    potentially_exposed_today[(self.current_stages == 0).tolist().index(True)] = 1
 
         newly_exposed_today = self.DPM.get_newly_exposed(
             self.current_stages, potentially_exposed_today
@@ -155,7 +163,7 @@ class GradABM:
         self.current_stages = self.DPM.init_infected_agents(
             initial_infected_percentage, self.device
         )
-        self.agents_infected_index = (self.current_stages >= STAGE_INDEX["infected"]).to(
+        self.agents_infected_index = (self.current_stages == STAGE_INDEX["infected"]).to(
             self.device
         )
         self.agents_infected_time = self.DPM.init_infected_time(self.current_stages, self.device)
@@ -197,18 +205,18 @@ class GradABM:
             print(f"    die: {target2}")
 
     def get_params(self, param_info: dict, param_t: list):
-        all_params = {}
+        self.proc_params = {}
         for proc_param in ALL_PARAMS:
             if proc_param in param_info["learnable_param_order"]:
                 try:
-                    all_params[proc_param] = param_t[
+                    self.proc_params[proc_param] = param_t[
                         param_info["learnable_param_order"].index(proc_param)
                     ]
                 except IndexError:  # if only one learnable param
-                    all_params[proc_param] = param_t
+                    self.proc_params[proc_param] = param_t
             else:
-                all_params[proc_param] = param_info["learnable_param_default"][proc_param]
-        return all_params
+                self.proc_params[proc_param] = param_info["learnable_param_default"][proc_param]
+        # return self.all_params
 
     def cal_lam_gamma_integrals(
         self, shape, scale, infection_gamma_scaling_factor, max_infectiousness_days=20
@@ -229,18 +237,16 @@ class GradABM:
         debug: bool = False,
         save_records: bool = False,
     ):
-        """Send a   s input: r0_value [hidden state] -> trainable parameters  and t is the time-step of simulation."""
-        proc_params = self.get_params(param_info, param_t)
-
         if t == 0:
+            self.get_params(param_info, param_t)
             self.init_infected_tensors(
-                proc_params["initial_infected_percentage"],
-                proc_params["infected_to_recovered_or_death_time"],
+                self.proc_params["initial_infected_percentage"],
+                self.proc_params["infected_to_recovered_or_death_time"],
             )
             self.cal_lam_gamma_integrals(
-                proc_params["infection_gamma_shape"],
-                proc_params["infection_gamma_scale"],
-                proc_params["infection_gamma_scaling_factor"],
+                self.proc_params["infection_gamma_shape"],
+                self.proc_params["infection_gamma_scale"],
+                self.proc_params["infection_gamma_scaling_factor"],
             )
         else:
             (
@@ -248,22 +254,29 @@ class GradABM:
                 self.agents_infected_time,
                 self.agents_next_stage_times,
             ) = self.create_random_infected_tensors(
-                proc_params["random_infected_percentgae"],
-                proc_params["infected_to_recovered_or_death_time"],
+                self.proc_params["random_infected_percentgae"],
+                self.proc_params["infected_to_recovered_or_death_time"],
                 t,
             )
 
         newly_exposed_today = self.get_newly_exposed(
-            proc_params["r0"], self.lam_gamma_integrals, t
+            self.proc_params["r0"], self.lam_gamma_integrals, t
         )
-
+        # print(t, newly_exposed_today.sum())
+        # print(t, set(self.agents_next_stage_times.tolist()))
         recovered_dead_now, death_indices, target2 = self.DPM.get_target_variables(
-            proc_params["mortality_rate"],
+            self.proc_params["mortality_rate"],
             self.current_stages,
             self.agents_next_stage_times,
+            self.proc_params["infected_to_recovered_or_death_time"],
             t,
-            self.device,
         )
+
+        # susceptible_mask = self.DPM.create_stage_mask(
+        #    self.current_stages, STAGE_INDEX["susceptible"], bias=1.0
+        # )
+        # target2 = 0.1 * newly_exposed_today.sum()
+        # print(t, newly_exposed_today.sum())
 
         stage_records = None
         if save_records:
@@ -285,8 +298,8 @@ class GradABM:
 
         # update times with current_stages
         self.agents_next_stage_times = self.DPM.update_next_stage_times(
-            proc_params["exposed_to_infected_time"],
-            proc_params["infected_to_recovered_or_death_time"],
+            self.proc_params["exposed_to_infected_time"],
+            self.proc_params["infected_to_recovered_or_death_time"],
             newly_exposed_today,
             self.current_stages,
             self.agents_next_stage_times,
@@ -294,7 +307,9 @@ class GradABM:
             total_timesteps,
         )
 
+        # if t in [0, 1]:
         self.current_stages = next_stages
+
         # update for newly exposed agents {exposed_today}
         self.agents_infected_index[newly_exposed_today.bool()] = True
         self.agents_infected_time[newly_exposed_today.bool()] = t
@@ -303,20 +318,29 @@ class GradABM:
 
         # reconcile and return values
         self.current_time += 1
+        # target2 = self.proc_params["exposed_to_infected_time"].sum()
+        # print(target2)
+        # if t == 3:
+        #    from torchviz import make_dot
+
+        #    make_dot(target2).render("tensor_hierarchy3", format="png")
+
+        #    # print(target2)
+
+        # target2 = self.current_stages.sum()
 
         return stage_records, target2
 
     def _get_lam_gamma_integrals(self, a, b, infection_gamma_scaling_factor, total_t):
         gamma_dist = torch_gamma(concentration=a, rate=1 / b)
 
-        res = gamma_dist.log_prob(torch.tensor(range(total_t))).exp()
+        res = gamma_dist.log_prob(torch.tensor(range(total_t))).exp().to(self.device)
 
-        res_factor = 1.0
         if infection_gamma_scaling_factor is not None:
             res_factor = infection_gamma_scaling_factor / max(res.tolist())
+            res = res * res_factor
 
-        res = res * res_factor
-
+        res[0] = res[1] / 3.0
         return res
 
 

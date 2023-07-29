@@ -42,11 +42,54 @@ def get_loss_func(
         )  # loss_fn = NegativeCosineSimilarityLoss()
 
     elif OPT_METHOD == "sgd":
+        """
+        import torch.nn as nn
+
+        weight_matrix = param_model.fc[-1].weight
+        learning_rate_weight_matrix_first_type = 0.5
+        weight_matrix_custom_param = nn.Parameter(weight_matrix[0, :], requires_grad=True)
+
+        learning_rate_rest_parameters = 0.1
+        rest_parameters = [
+            param for name, param in param_model.fc[-1].named_parameters() if name != "weight"
+        ][0]
+        param_group_rest_parameters = [
+            {"params": rest_parameters, "lr": learning_rate_rest_parameters}
+        ]
+
+        optimizer = SGD(
+            # filter(lambda p: p.requires_grad, param_model.parameters()),
+            [
+                # {"params": param_model.temporal_model.parameters(), "lr": 0.01},
+                # {"params": param_model.fc.parameters(), "lr": 0.01},
+                {
+                    "params": weight_matrix_custom_param,
+                    "lr": learning_rate_weight_matrix_first_type,
+                },
+                # *param_group_rest_parameters,
+            ],
+            lr=0.01,
+        )
+        optimizer = SGD(
+            [
+                {"params": param_model.temporal_model.parameters(), "lr": 0.01},
+                {"params": param_model.fc.parameters(), "lr": 0.01},
+                {
+                    "params": param_group_weight_matrix_first_type,
+                    "lr": learning_rate_weight_matrix_first_type,
+                },
+                *param_group_rest_parameters,
+            ],
+            lr=0.01,
+        )
+        """
         opt = SGD(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,
-            weight_decay=weight_decay,
-            differentiable=True,
+            # weight_decay=weight_decay,
+            # momentum=0.99,
+            # weight_decay=0.0001,
+            differentiable=False,
         )
 
     elif OPT_METHOD == "adag":
@@ -103,15 +146,21 @@ def get_loss_func(
     }
 
 
-def loss_optimization(loss, param_model, loss_def: dict, cfg_opt: dict):
+def loss_optimization(loss, param_model, loss_def: dict, cfg_opt: dict, print_grad: bool = False):
     if loss_def["loss_func_scaler"] is None:
         loss.backward()
-        clip_grad_norm_(param_model.parameters(), cfg_opt["clip_grad_norm"])
+        if cfg_opt["clip_grad_norm"] is not None:
+            clip_grad_norm_(param_model.parameters(), cfg_opt["clip_grad_norm"])
         loss_def["opt"].step()
     else:
         loss_def["loss_func_scaler"].scale(loss).backward()
         loss_def["loss_func_scaler"].step(loss_def["opt"])
         loss_def["loss_func_scaler"].update()
+
+    if print_grad:
+        for name, param in param_model.named_parameters():
+            if param.requires_grad and param.grad is not None:
+                logger.info(f"Parameter: {name}, Gradient: {param.grad}")
 
     if loss_def["lr_scheduler"] is not None:
         loss_def["lr_scheduler"].step()

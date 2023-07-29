@@ -65,6 +65,7 @@ class TemporalNN(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.use_rnn = USE_RNN
+        self.init_run = True
         if USE_RNN:
             self.temporal_model = nn.RNN(
                 input_size,
@@ -109,13 +110,17 @@ class TemporalNN(nn.Module):
         return self.min_values + (self.max_values - self.min_values) * self.sigmod(x)
 
     def forward(self, x, device):
-        h0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(device)
-        if self.use_rnn:
-            hc = h0
+        if self.init_run:
+            h0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(device)
+            if self.use_rnn:
+                hc = h0
+            else:
+                c0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(device)
+                hc = (h0, c0)
+            out, _ = self.temporal_model(torch_tensor(x).float(), hc)
+            self.init_run = False
         else:
-            c0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(device)
-            hc = (h0, c0)
-        out, _ = self.temporal_model(torch_tensor(x).float(), hc)
+            out, _ = self.temporal_model(torch_tensor(x).float())
         return self.scale_param(self.fc(out))
 
     def param_info(self):

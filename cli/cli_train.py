@@ -45,9 +45,6 @@ def setup_parser():
         required=True,
         help="Configuration path for the model (e.g., scaling factor), e.g., gradadm_exp.cfg",
     )
-    # parser.add_argument(
-    #    "--learnable_param", required=True, help="Learnable paramters configuration"
-    # )
     parser.add_argument("--agents_data", required=True, help="Agents data in parquet")
     parser.add_argument("--interaction_data", required=True, help="Interaction data in parquet")
     parser.add_argument("--target_data", required=True, help="Target data in CSV")
@@ -99,7 +96,6 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
 
     logger.info("Creating loss function ...")
     loss_def = get_loss_func(param_model, model_inputs["total_timesteps"], cfg["optimization"])
-
     epoch_loss_list = []
     smallest_loss = INITIAL_LOSS
 
@@ -114,20 +110,21 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
             save_records=False,
         )
 
-        output = postproc(param_model, predictions, model_inputs["target"])
+        output = postproc(predictions, model_inputs["target"])
 
         loss = loss_def["loss_func"](output["y"], output["pred"])
 
-        epoch_loss = loss_optimization(loss, param_model, loss_def, cfg["optimization"])
+        epoch_loss = loss_optimization(
+            loss, param_model, loss_def, cfg["optimization"], print_grad=False
+        )
 
         logger.info(
-            f"{epi}: Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; Lr: {round(loss_def['opt'].param_groups[0]['lr'], 2)}"
+            f"{epi}: Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; Lr: {round(loss_def['opt'].param_groups[0]['lr'], 5)}"
         )
 
         if epoch_loss < smallest_loss:
             param_with_smallest_loss = param_values_all
             smallest_loss = epoch_loss
-
         epoch_loss_list.append(epoch_loss)
 
     logger.info(param_values_all)
@@ -152,4 +149,6 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
 
 if __name__ == "__main__":
     args = setup_parser()
-    main(args.workdir, args.exp, args.agents_data, args.interaction_data, args.target_data)
+    main(
+        args.workdir, args.exp, args.cfg, args.agents_data, args.interaction_data, args.target_data
+    )

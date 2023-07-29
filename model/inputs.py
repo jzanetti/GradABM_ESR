@@ -52,7 +52,7 @@ def train_data_wrapper(
         Returns:
             dict: Y data
         """
-        y_input = pandas_read_csv(y_path)
+        y_input = pandas_read_csv(y_path)[10:]
         y_input = y_input.to_numpy()
         y = []
         tensor_y = torch.from_numpy(array([y_input]).astype(numpy_float64))

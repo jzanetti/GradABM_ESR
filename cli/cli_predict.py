@@ -157,11 +157,7 @@ def main(workdir, cfg, model_base_dir, replace_agents_with: str or None = None):
         )
 
         logger.info("Output processing ...")
-        outputs.append(
-            postproc(
-                trained_output["param_model"], predictions, trained_output["output_info"]["target"]
-            )
-        )
+        outputs.append(postproc(predictions, trained_output["output_info"]["target"]))
 
         epoch_losses.append(trained_output["output_info"]["epoch_loss_list"])
 

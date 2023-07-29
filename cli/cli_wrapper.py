@@ -16,7 +16,7 @@ input_data = {
 }
 
 model_predict_cfg = "data/measles/auckland/gradam_exp.yml"
-run_input_main = True
+run_input_main = False
 run_model_main = True
 run_predict_main = True
 
