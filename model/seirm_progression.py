@@ -175,7 +175,7 @@ class SEIRMProgression(DiseaseProgression):
                 agents_next_stage_times - infected_to_recovered_or_death_time, min=0.0
             )
         else:
-            agents_next_stage_times_min = torch_clamp(agents_next_stage_times - 0.5, min=0.0)
+            agents_next_stage_times_min = torch_clamp(agents_next_stage_times - 1.0, min=0.0)
 
         recovered_or_dead_today = (
             current_stages

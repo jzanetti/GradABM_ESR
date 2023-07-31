@@ -124,7 +124,7 @@ learnable_params:
     enable: false
     min: 1.0
     max: 3.0
-    default: 2.0
+    default: 1.0
   infection_gamma_shape:
     enable: true
     min: 1.0

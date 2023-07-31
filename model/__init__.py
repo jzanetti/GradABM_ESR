@@ -18,16 +18,16 @@ STAGE_INDEX = {"susceptible": 0, "exposed": 1, "infected": 2, "recovered_or_deat
 DEVICE = torch_device(f"cuda:0")
 # DEVICE = torch_device("cpu")
 
-"""
+
 TORCH_SEED_NUM = {
     "initial_infected": 100,
     "random_infected": 200,
     "newly_exposed": 300,
     "isolation_policy": 400,
 }
-"""
 
-TORCH_SEED_NUM = None
+
+# TORCH_SEED_NUM = None
 
 USE_TEMPORAL_PARAMS = True
 USE_RNN = False
