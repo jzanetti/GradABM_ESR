@@ -72,7 +72,7 @@ def train_data_wrapper(
     }
 
 
-def create_agents(agent_filepath: str) -> DataFrame:
+def create_agents(agent_filepath: str, max_agents: int or None = None) -> DataFrame:
     """Create agents
 
     Args:
@@ -82,11 +82,16 @@ def create_agents(agent_filepath: str) -> DataFrame:
         DataFrame: Agents information
     """
     if agent_filepath.endswith("parquet"):
-        return pandas_read_parquet(agent_filepath)
+        all_agents = pandas_read_parquet(agent_filepath)
     elif agent_filepath.endswith("csv"):
-        return pandas_read_csv(agent_filepath)
+        all_agents = pandas_read_csv(agent_filepath)
     else:
         raise Exception("The file format is not supported")
+
+    if max_agents is not None:
+        all_agents = all_agents.head(max_agents)
+
+    return all_agents
 
 
 def agent_interaction_wrapper(

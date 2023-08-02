@@ -112,7 +112,7 @@ def main(
     sa2 = get_sa2_from_dhb(sa2_dhb_data, dhb_list)
 
     logger.info("Getting agents ...")
-    agents = get_agents(data, sa2, workdir, cfg["vaccine_ratio"])
+    agents = get_agents(data, sa2, workdir, cfg["vaccine_ratio"], plot_agents=False)
 
     logger.info("Creating interactions ...")
     get_interactions(data, agents, sa2, workdir)

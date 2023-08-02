@@ -44,7 +44,7 @@ infection:
       - 1.0 # 1: Female
     vaccine:
       - 1.0 # 0: not vaccined (e.g., 1.0)
-      - 0.05 # 1: vaccined (e.g., 0.0001)
+      - 1.0 # 1: vaccined (e.g., 0.0001)
     outbreak_ctl:
       isolation: # for infected cases
         compliance_rate: 0.5 # float (e.g., 0.9) or None
@@ -102,9 +102,9 @@ learnable_params:
     default: 1.0 # 5.0
   mortality_rate:
     enable: true
-    min: 1.0
-    max: 50.0
-    default: 25.0
+    min: 0.1
+    max: 3.0
+    default: 1.0
   initial_infected_percentage:
     enable: true
     min: 0.01
@@ -113,8 +113,8 @@ learnable_params:
   random_infected_percentgae:
     enable: true
     min: 0.01
-    max: 10.0
-    default: 3.0
+    max: 1.0
+    default: 0.0
   exposed_to_infected_time:
     enable: false
     min: 0.1
@@ -124,7 +124,7 @@ learnable_params:
     enable: false
     min: 1.0
     max: 3.0
-    default: 1.0
+    default: 2.0
   infection_gamma_shape:
     enable: true
     min: 1.0
@@ -137,6 +137,6 @@ learnable_params:
     default: 10.0
   infection_gamma_scaling_factor: # decide how fast the disease spread
     enable: true
-    min: 0.6
-    max: 2.0
-    default: 1.25
+    min: 0.01
+    max: 0.3
+    default: 0.05

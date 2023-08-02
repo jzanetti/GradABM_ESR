@@ -1,8 +1,13 @@
 from datetime import datetime
 from logging import INFO, Formatter, StreamHandler, basicConfig, getLogger
 from os.path import join
+from time import time
 
 from yaml import safe_load as yaml_load
+
+
+def create_random_seed(factor=100000):
+    return factor * time()
 
 
 def setup_logging(workdir: str = "/tmp", start_utc: datetime = datetime.utcnow()):

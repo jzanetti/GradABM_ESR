@@ -1,6 +1,7 @@
 from logging import getLogger
 from os.path import join
 
+from matplotlib.pyplot import axis, close, figure, pie, savefig, tight_layout, title
 from numpy.random import random as numpy_random
 from pandas import DataFrame
 from pandas import merge as pandas_merge
@@ -13,6 +14,7 @@ from input import (
     LOC_INDEX,
     SEX_INDEX,
 )
+from input.vis import agents_vis
 
 logger = getLogger()
 
@@ -66,12 +68,10 @@ def convert_to_age_index(age):
             return index
 
 
-def get_agents(data, sa2, data_dir, vaccine_ratio):
+def get_agents(data, sa2, data_dir, vaccine_ratio, plot_agents=False):
     def _assign_vaccination(ethnicity):
         return 1 if numpy_random() < vaccine_ratio[ethnicity] else 0
 
-    # agents = data[["id", "age"]].drop_duplicates()
-    # count_with_count = (x["vaccine_coverage"] == 1.0).sum()
     agents = data[["id", "age", "sex", "ethnicity", "area"]].drop_duplicates()
     print(f"Total population {len(agents)}")
     agents["age"] = agents["age"].apply(convert_to_age_index)
@@ -79,18 +79,12 @@ def get_agents(data, sa2, data_dir, vaccine_ratio):
     agents["vaccine"] = agents["ethnicity"].apply(_assign_vaccination)
     agents["ethnicity"] = agents["ethnicity"].map(ETHNICITY_INDEX)
 
-    # if sa2 is not None:
-    #    agents = agents[agents["area"].isin(sa2)]
-
-    # matching the number of rows with "id":
-    # unique_ids = agents["id"].unique()
-    # max_id = agents["id"].max()
-    # all_ids = range(1, max_id + 1)
-    # agents = agents.set_index("id").reindex(all_ids, fill_value=-999).reset_index()
-
     agents.to_parquet(join(data_dir, "agents.parquet"), index=False)
 
     agents["row_number"] = range(len(agents))
+
+    if plot_agents:
+        agents_vis(agents, sa2)
 
     return agents
 

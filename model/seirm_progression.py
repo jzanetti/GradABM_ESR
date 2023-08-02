@@ -1,20 +1,31 @@
 import torch.nn.functional as F
-from numpy import array, isnan, where
+from numpy import arange as numpy_arange
+from numpy import array
+from numpy import array as numpy_array
+from numpy import isnan
+from numpy import sum as numpy_sum
+from numpy import where
 from numpy.random import choice
+from numpy.random import choice as numpy_choice
+from numpy.random import random as numpy_random
 from torch import clamp as torch_clamp
 from torch import clone as torch_clone
 from torch import eq as torch_eq
 from torch import hstack as torch_hstack
 from torch import log as torch_log
+from torch import long as torch_long
 from torch import manual_seed as torch_seed
 from torch import masked_select as torch_masked_select
 from torch import ones as torch_ones
 from torch import ones_like as torch_ones_like
 from torch import sum as torch_sum
+from torch import tensor as torch_tensor
+from torch import where as torch_where
 from torch import zeros_like as torch_zeros_like
 
 from model import SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
 from model.disease_progression import DiseaseProgression
+from utils.utils import create_random_seed
 
 
 class SEIRMProgression(DiseaseProgression):
@@ -48,6 +59,7 @@ class SEIRMProgression(DiseaseProgression):
         while True:
             if TORCH_SEED_NUM is not None:
                 torch_seed(TORCH_SEED_NUM["random_infected"])
+
             agents_stages_with_random_infected = F.gumbel_softmax(
                 logits=cat_logits, tau=1, dim=1, hard=True
             )[:, 0]
@@ -76,6 +88,7 @@ class SEIRMProgression(DiseaseProgression):
         cat_logits = torch_log(p + 1e-9)
         if TORCH_SEED_NUM is not None:
             torch_seed(TORCH_SEED_NUM["initial_infected"])
+
         agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
         agents_stages *= STAGE_INDEX["infected"]
         agents_stages = agents_stages.to(device)
@@ -89,12 +102,30 @@ class SEIRMProgression(DiseaseProgression):
         return agents_infected_time
 
     def init_agents_next_stage_time(
-        self, agents_stages, infected_to_recovered_or_dead_time, device
+        self, agents_stages, infected_to_recovered_or_dead_time, device, use_prob=False
     ):
-        agents_next_stage_times = 0.001 * torch_ones_like(agents_stages).long().to(device)
-        agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = (
-            0 + infected_to_recovered_or_dead_time
-        )
+        # agents_next_stage_times = 0.001 * torch_ones_like(agents_stages).long().to(device)
+        agents_next_stage_times = torch_zeros_like(agents_stages).long().to(device)
+
+        if use_prob:
+            # Create an array with the desired values 1.0 and 2.0 with the specified probabilities.
+            options = numpy_arange(0.0, infected_to_recovered_or_dead_time + 1.0, 1.0)
+            probabilities = numpy_random(len(options))
+            probabilities /= numpy_sum(probabilities)
+
+            # Randomly choose values from the options array based on the given probabilities.
+            random_values = numpy_choice(
+                options,
+                size=len(agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]]),
+                p=probabilities,
+            )
+            agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = torch_tensor(
+                random_values, dtype=torch_long
+            ).to(device)
+        else:
+            agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = (
+                0 + infected_to_recovered_or_dead_time
+            )
         return agents_next_stage_times
 
     def update_initial_times(self, learnable_params, agents_stages, agents_next_stage_times):
@@ -132,13 +163,13 @@ class SEIRMProgression(DiseaseProgression):
         new_transition_times = torch_clone(agents_next_stage_times)
         curr_stages = torch_clone(current_stages).long()
         new_transition_times[
-            (curr_stages == STAGE_INDEX["infected"]) * (t >= agents_next_stage_times)
+            (curr_stages == STAGE_INDEX["infected"]) * (t == agents_next_stage_times)
         ] = (total_timesteps + 1)
         new_transition_times[
-            (curr_stages == STAGE_INDEX["exposed"]) * (t >= agents_next_stage_times)
+            (curr_stages == STAGE_INDEX["exposed"]) * (t == agents_next_stage_times)
         ] = (t + infected_to_recovered_or_dead_time)
         return (
-            newly_exposed_today * (t + 1 + exposed_to_infected_time)
+            newly_exposed_today * (t + exposed_to_infected_time)
             + (1 - newly_exposed_today) * new_transition_times
         )
 
@@ -159,44 +190,28 @@ class SEIRMProgression(DiseaseProgression):
 
             return death_indices
 
-        def _apply_sigmoid_to_mask_t(t, agents_next_stage_times_min, agents_next_stage_times_max):
-            import torch
+        after_infected_index = (current_stages == STAGE_INDEX["infected"]).float() * (
+            t == agents_next_stage_times
+        ).float()
 
-            return torch.sigmoid(10 * (torch.tensor(float(t)) - agents_next_stage_times_min)) * (
-                1 - torch.sigmoid(10 * (torch.tensor(float(t)) - agents_next_stage_times_max))
+        # if t == 3:
+        #    x = 3
+
+        # print(t, after_infected_index.sum())
+
+        if after_infected_index.sum() == 0:
+            after_infected_index = torch_where(
+                after_infected_index == 0.0, torch_tensor(SMALL_VALUE), after_infected_index
             )
 
-        agents_next_stage_times_max = agents_next_stage_times + 1.0
+        recovered_or_dead_today = (current_stages * after_infected_index) / STAGE_INDEX["infected"]
 
-        if (
-            t < infected_to_recovered_or_death_time
-        ):  # make sure we have recovered_or_dead_today from t0
-            agents_next_stage_times_min = torch_clamp(
-                agents_next_stage_times - infected_to_recovered_or_death_time, min=0.0
-            )
-        else:
-            agents_next_stage_times_min = torch_clamp(agents_next_stage_times - 1.0, min=0.0)
-
-        recovered_or_dead_today = (
-            current_stages
-            * (current_stages == STAGE_INDEX["infected"])
-            * ((t >= agents_next_stage_times_min) & (t < agents_next_stage_times_max))
-        ) / STAGE_INDEX["infected"]
-
-        # print(t, recovered_or_dead_today.sum())
-
-        if apply_sigmoid:
-            recovered_or_dead_today = torch_clamp(
-                recovered_or_dead_today, min=SMALL_VALUE
-            ) * _apply_sigmoid_to_mask_t(
-                t, agents_next_stage_times_min, agents_next_stage_times_max
-            )
-
-        death_total_today = (mortality_rate / 100.0) * torch_sum(
-            recovered_or_dead_today
-        ) + SMALL_VALUE
+        death_total_today = (mortality_rate / 100.0) * torch_sum(recovered_or_dead_today)
 
         death_indices = _randomly_assign_death_people(recovered_or_dead_today, death_total_today)
+
+        # remove the impact from SMALL_VALUE
+        recovered_or_dead_today[recovered_or_dead_today < 0.1] = 0.0
 
         return recovered_or_dead_today, death_indices, death_total_today
 
@@ -220,8 +235,17 @@ class SEIRMProgression(DiseaseProgression):
         # x = torch.zeros_like(self.current_stages)
         # x[mask] = selected_elements
 
-        agents_next_stage_times_max = agents_next_stage_times + 0.5
+        # agents_next_stage_times_max = agents_next_stage_times + 0.5
 
+        after_exposed = STAGE_INDEX["exposed"] * (t < agents_next_stage_times) + STAGE_INDEX[
+            "infected"
+        ] * (t == agents_next_stage_times)
+
+        after_infected = STAGE_INDEX["infected"] * (t < agents_next_stage_times) + STAGE_INDEX[
+            "recovered_or_death"
+        ] * (t == agents_next_stage_times)
+
+        """
         after_exposed = STAGE_INDEX["exposed"] * (t < agents_next_stage_times) + STAGE_INDEX[
             "infected"
         ] * ((t >= agents_next_stage_times) & (t < agents_next_stage_times_max))
@@ -229,7 +253,7 @@ class SEIRMProgression(DiseaseProgression):
         after_infected = STAGE_INDEX["infected"] * (t < agents_next_stage_times) + STAGE_INDEX[
             "recovered_or_death"
         ] * ((t >= agents_next_stage_times) & (t < agents_next_stage_times_max))
-
+        """
         after_infected[death_indices] = STAGE_INDEX["death"]
 
         stage_progression = (

@@ -8,7 +8,7 @@ from input import INTERACTION_ENS_MEMBERS
 workdir = "/tmp/manukau_measles_2019"
 
 input_data = {
-    "june_nz_data": "/tmp/june_realworld_auckland/interaction_output.parquet",
+    "june_nz_data": "data/june_output/interaction_output.parquet",
     "cfg": "data/measles/auckland/input_exp.yml",
     "target_data": "data/measles_cases_2019.parquet",
     "sa2_dhb_data": "data/dhb_and_sa2.parquet",
@@ -16,7 +16,7 @@ input_data = {
 }
 
 model_predict_cfg = "data/measles/auckland/gradam_exp.yml"
-run_input_main = False
+run_input_main = True
 run_model_main = True
 run_predict_main = True
 

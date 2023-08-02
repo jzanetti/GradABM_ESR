@@ -1,3 +1,5 @@
+from logging import getLogger
+
 from torch import gather as torch_gather
 from torch import manual_seed as torch_seed
 from torch import nonzero as torch_nonzero
@@ -7,6 +9,9 @@ from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
 from model import TORCH_SEED_NUM
+from utils.utils import create_random_seed
+
+logger = getLogger()
 
 
 def infected_case_isolation(
@@ -26,7 +31,10 @@ def infected_case_isolation(
     # infected agents (0.0: uninfected; 1.0: infected)
     infected_agents = infected_idx.float()
     infected_agents_index = torch_nonzero(infected_agents == 1.0).squeeze()
-    infected_agents_length = len(infected_agents_index)
+    try:
+        infected_agents_length = len(infected_agents_index)
+    except TypeError:  # len() of a 0-d tensor
+        infected_agents_length = -999.0
 
     if infected_agents_length < min_cases:
         return torch_ones_like(infected_agents)
@@ -35,6 +43,7 @@ def infected_case_isolation(
 
     if TORCH_SEED_NUM is not None:
         torch_seed(TORCH_SEED_NUM["isolation_policy"])
+
     isolated_agents_index = torch_randperm(infected_agents_length)[:isolated_agents_length]
     isolated_mask = torch_zeros_like(infected_agents)
     isolated_mask[infected_agents_index[isolated_agents_index]] = 1.0 - isolation_intensity
@@ -83,6 +92,14 @@ def lam(
     infected_idx = x_j[:, 5].bool()
     infected_times = t - x_j[infected_idx, 6]
 
+    # total_infected = infected_idx.tolist().count(True)
+    # max_infected_time = None
+    # min_infected_times = None
+    # if total_infected > 0:
+    #    max_infected_time = infected_times.max()
+    #    min_infected_times = infected_times.min()
+    # logger.info(f"{t}: The longest infection time is {max_infected_time}/{min_infected_times}")
+
     integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
 
     # Isolate infected cases
@@ -125,8 +142,9 @@ def lam(
     #  - integrals: 1.52
     #  - B_n: 0.1
     #  - I_bar: 2
-    res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
+    # res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
 
+    res = R * S_A_s * A_s_i * B_n * integrals / I_bar
     # import random
 
     # random_number_test = random.randint(0, 100)
@@ -157,11 +175,17 @@ class InfectionNetwork(MessagePassing):
         # self.lam_gamma_integrals = lam_gamma_integrals
         self.device = device
 
-    def forward(self, data, r0_value_trainable, lam_gamma_integrals, outbreak_ctl_cfg):
+    def forward(
+        self, data, r0_value_trainable, lam_gamma_integrals, outbreak_ctl_cfg, vis_debug=False
+    ):
         x = data.x
         edge_index = data.edge_index
         edge_attr = data.edge_attr
         t = data.t
+
+        if vis_debug:
+            self.vis_debug_graph(edge_index)
+
         return self.propagate(
             edge_index,
             x=x,
@@ -208,3 +232,49 @@ class InfectionNetwork(MessagePassing):
             outbreak_ctl_cfg,
         )  # tmp has shape [E, 2 * in_channels]
         return tmp
+
+    def vis_debug_graph(self, edge_index, source_node=304667):
+        import matplotlib.pyplot as plt
+        from networkx import Graph, bfs_edges, draw_networkx, spring_layout
+
+        logger.info("Creating VIS graph debug:")
+        edge_index_value = edge_index.cpu().T.numpy()
+        G = Graph()
+        logger.info("   - Adding edges from edge_index")
+        G.add_edges_from(edge_index_value)
+
+        logger.info("   - Creating connection nodes")
+        connected_nodes = list(bfs_edges(G, source_node))
+        connected_nodes = connected_nodes[0:3000]
+
+        logger.info("   - Creating tree nodes")
+        nodes_connected_to_0 = [source_node] + [v for u, v in connected_nodes]
+
+        logger.info("   - Creating subgraph")
+        # Create a subgraph containing only the nodes connected to node "0"
+        subgraph = G.subgraph(nodes_connected_to_0)
+
+        plt.figure(figsize=(10, 8))
+        logger.info("   - Creating spring_layout")
+        pos = spring_layout(subgraph)  # Positions the nodes using the spring layout algorithm
+
+        logger.info("   - Creating visualization")
+        plt.figure(figsize=(10, 8))
+        draw_networkx(
+            subgraph,
+            pos,
+            with_labels=False,
+            node_size=10,
+            node_color="skyblue",
+            font_size=12,
+            font_weight="bold",
+            font_color="black",
+        )
+        print("step 4 ...")
+        plt.title(
+            "Graph visualization for the agent 304667 over a week \n the first 3000 possible graph nodes/edges.",
+            fontsize=16,
+        )
+
+        plt.savefig("debug_graph_vis.png", bbox_inches="tight")
+        plt.close()

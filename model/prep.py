@@ -19,7 +19,7 @@ def prep_model_inputs(
     target_data = train_data_wrapper(target_data_path)
 
     print("Step 2: Creating agents ...")
-    all_agents = create_agents(agent_path)
+    all_agents = create_agents(agent_path, max_agents=None)
 
     print("Step 3: Creating interactions ...")
     all_interactions = create_interactions(interaction_cfg, interaction_path, len(all_agents))
