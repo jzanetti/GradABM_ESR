@@ -11,9 +11,9 @@ train:
       basic_lr: 0.1
       adaptive_lr:
         enable: true
-        step: 50
-        reduction_ratio: 0.95
-    num_epochs: 10
+        step: 20
+        reduction_ratio: 0.9
+    num_epochs: 100
     clip_grad_norm: 10.0
 
   # -------------------------------------------
@@ -46,20 +46,20 @@ train:
         - 1.0 # 1: Female
       vaccine:
         - 1.0 # 0: not vaccined (e.g., 1.0)
-        - 0.1 # 1: vaccined (e.g., 0.0001)
-      outbreak_ctl:
-        isolation: # for infected cases
-          compliance_rate: 0.9 # float (e.g., 0.9) or None
-          isolation_sf: 0.5 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
-        quarantine: # for exposed cases
-          contact_tracing_coverage: 0.5
-          compliance_rate: 0.5
-        exclusion: # for exposed cases
-          high_risk_settings:
-            - school
-          compliance_rate: 1.0
-        school_closure: # enable if infected case identified
-          enable: true
+        - 0.5 # 1: vaccined (e.g., 0.0001)
+    outbreak_ctl:
+      isolation: # for infected cases
+        compliance_rate: 0.7 # float (e.g., 0.9) or None
+        isolation_sf: 0.5 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
+      quarantine: # for exposed cases
+        contact_tracing_coverage: 0.5
+        compliance_rate: 0.5
+      exclusion: # for exposed cases
+        high_risk_settings:
+          - school
+        compliance_rate: 1.0
+      school_closure: # enable if infected case identified
+        enable: true
 
   # -------------------------------------------
   # Section 1.3: Interaction number and intensity
@@ -110,13 +110,13 @@ train:
     initial_infected_percentage:
       enable: true
       min: 0.01
-      max: 1.0
-      default: 0.2
+      max: 1.5
+      default: 0.75
     random_infected_percentgae:
       enable: true
       min: 0.01
       max: 1.0
-      default: 0.0
+      default: 0.5
     exposed_to_infected_time:
       enable: false
       min: 0.1
@@ -140,9 +140,14 @@ train:
     infection_gamma_scaling_factor: # decide how fast the disease spread
       enable: true
       min: 0.01
-      max: 0.3
-      default: 0.05
-
+      max: 2.0
+      default: 1.0
+  # -------------------------------------------
+  # Section 1.4: Learnable parmaters via NN
+  # -------------------------------------------
+  target:
+    start_timestep: 25
+    end_timestep: 51
 
 # <><><><><><><><><><><><><><><><><><><><>
 # Chapter 2. Prediction & Visualization
@@ -153,10 +158,11 @@ predict:
     initial_infected_sa2: null
     use_random_infection: true
     scaling_factor_update:
+      perturbation: true
       outbreak_ctl:
         isolation: # for infected cases
-          compliance_rate: 0.9 # float (e.g., 0.9) or None
-          isolation_sf: 0.1 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
+          compliance_rate: 0.7 # float (e.g., 0.9) or None
+          isolation_sf: 0.5 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
         quarantine: # for exposed cases
           contact_tracing_coverage: 0.5
           compliance_rate: 0.5
@@ -168,7 +174,8 @@ predict:
           enable: true
 
     vis:
-      temporal_res: weekly
+      temporal_res: weeks
+      name: Manukau DHB
       agents_map:
         enable: true
         sa2_path: /home/zhangs/Github/JUNE_NZ_data/geography/statistical-area-2-2018-generalised.csv

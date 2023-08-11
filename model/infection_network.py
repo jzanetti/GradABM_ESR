@@ -1,4 +1,5 @@
 from logging import getLogger
+from random import uniform as random_uniform
 
 from torch import gather as torch_gather
 from torch import manual_seed as torch_seed
@@ -66,6 +67,7 @@ def lam(
     SFInfector,
     lam_gamma_integrals,
     outbreak_ctl_cfg,
+    perturbation_flag,
 ):
     """
     self.agents_ages,  # 0: age
@@ -142,9 +144,15 @@ def lam(
     #  - integrals: 1.52
     #  - B_n: 0.1
     #  - I_bar: 2
-    # res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
 
-    res = R * S_A_s * A_s_i * B_n * integrals / I_bar
+    if perturbation_flag:
+        from random import uniform as random_uniform
+
+        R = random_uniform(R * 0.7, R * 1.3)
+
+    res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
+
+    # res = R * S_A_s * A_s_i * B_n * integrals / I_bar
     # import random
 
     # random_number_test = random.randint(0, 100)
@@ -176,7 +184,13 @@ class InfectionNetwork(MessagePassing):
         self.device = device
 
     def forward(
-        self, data, r0_value_trainable, lam_gamma_integrals, outbreak_ctl_cfg, vis_debug=False
+        self,
+        data,
+        r0_value_trainable,
+        lam_gamma_integrals,
+        outbreak_ctl_cfg,
+        perturbation_flag,
+        vis_debug=False,
     ):
         x = data.x
         edge_index = data.edge_index
@@ -199,6 +213,7 @@ class InfectionNetwork(MessagePassing):
             SFInfector=self.SFInfector,
             lam_gamma_integrals=lam_gamma_integrals,
             outbreak_ctl_cfg=outbreak_ctl_cfg,
+            perturbation_flag=perturbation_flag,
         )
 
     def message(
@@ -215,6 +230,7 @@ class InfectionNetwork(MessagePassing):
         SFInfector,
         lam_gamma_integrals,
         outbreak_ctl_cfg,
+        perturbation_flag,
     ):
         # x_j has shape [E, in_channels]
         tmp = self.lam(
@@ -230,6 +246,7 @@ class InfectionNetwork(MessagePassing):
             SFInfector,
             lam_gamma_integrals,
             outbreak_ctl_cfg,
+            perturbation_flag,
         )  # tmp has shape [E, 2 * in_channels]
         return tmp
 

@@ -6,7 +6,7 @@ from torch import device as torch_device
 
 ALL_PARAMS = [
     "r0",
-    "mortality_rate",
+    "target_sf",
     "initial_infected_percentage",
     "random_infected_percentgae",
     "exposed_to_infected_time",
@@ -30,9 +30,10 @@ TORCH_SEED_NUM = {
 }
 """
 
+
 TORCH_SEED_NUM = None
 
-USE_TEMPORAL_PARAMS = False
+USE_TEMPORAL_PARAMS = True
 USE_RNN = False
 REMOVE_WARM_UP_TIMESTEPS = None  # must be a integer or None
 
@@ -42,3 +43,5 @@ USE_LOSS_SCALER = False
 INITIAL_LOSS = 1e10
 
 SMALL_VALUE = 1e-9
+
+PRINT_INCRE = True

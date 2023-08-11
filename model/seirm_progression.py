@@ -11,6 +11,7 @@ from numpy.random import random as numpy_random
 from torch import clamp as torch_clamp
 from torch import clone as torch_clone
 from torch import eq as torch_eq
+from torch import float32 as torch_float32
 from torch import hstack as torch_hstack
 from torch import log as torch_log
 from torch import long as torch_long
@@ -80,10 +81,30 @@ class SEIRMProgression(DiseaseProgression):
 
         return agents_stages, agents_infected_time, agents_next_stage_times
 
-    def init_infected_agents(self, initial_infected_percentage, device):
+    def init_infected_agents(
+        self,
+        initial_infected_percentage,
+        agents_area,
+        initial_infected_sa2,
+        device,
+    ):
         prob_infected = (initial_infected_percentage / 100) * torch_ones((self.num_agents, 1)).to(
             device
         )
+
+        if initial_infected_sa2 is not None:
+            initial_infected_sa2_tensor = torch_tensor(initial_infected_sa2, device="cuda:0")
+            initial_infected_sa2_mask = torch_zeros_like(
+                agents_area, dtype=torch_float32, device="cuda:0"
+            )
+
+            for value in initial_infected_sa2_tensor:
+                initial_infected_sa2_mask = initial_infected_sa2_mask + (agents_area == value)
+
+            initial_infected_sa2_mask = (initial_infected_sa2_mask > 0).to(torch_float32)
+
+            prob_infected *= initial_infected_sa2_mask.unsqueeze(1)
+
         p = torch_hstack((prob_infected, 1 - prob_infected))
         cat_logits = torch_log(p + 1e-9)
         if TORCH_SEED_NUM is not None:
@@ -175,7 +196,7 @@ class SEIRMProgression(DiseaseProgression):
 
     def get_target_variables(
         self,
-        mortality_rate,
+        target_sf,
         current_stages,
         agents_next_stage_times,
         infected_to_recovered_or_death_time,
@@ -194,11 +215,6 @@ class SEIRMProgression(DiseaseProgression):
             t == agents_next_stage_times
         ).float()
 
-        # if t == 3:
-        #    x = 3
-
-        # print(t, after_infected_index.sum())
-
         if after_infected_index.sum() == 0:
             after_infected_index = torch_where(
                 after_infected_index == 0.0, torch_tensor(SMALL_VALUE), after_infected_index
@@ -206,7 +222,7 @@ class SEIRMProgression(DiseaseProgression):
 
         recovered_or_dead_today = (current_stages * after_infected_index) / STAGE_INDEX["infected"]
 
-        death_total_today = (mortality_rate / 100.0) * torch_sum(recovered_or_dead_today)
+        death_total_today = (target_sf / 100.0) * torch_sum(recovered_or_dead_today)
 
         death_indices = _randomly_assign_death_people(recovered_or_dead_today, death_total_today)
 

@@ -11,14 +11,14 @@ import argparse
 from os import makedirs
 from os.path import exists, join
 
-from model import INITIAL_LOSS
+from model import INITIAL_LOSS, PRINT_INCRE
 from model.abm import build_abm, forward_abm
 from model.diags import save_outputs
 from model.loss_func import get_loss_func, loss_optimization
 from model.param_model import create_param_model, param_model_forward
 from model.postp import postproc
 from model.prep import prep_env, prep_model_inputs
-from utils.utils import read_cfg, setup_logging
+from utils.utils import get_params_increments, read_cfg, setup_logging
 
 
 def get_example_usage():
@@ -56,7 +56,7 @@ def setup_parser():
             "--workdir",
             "/tmp/gradabm_esr_auckland",
             "--cfg",
-            "data/measles/auckland/gradam_exp.yml",
+            "data/measles/auckland/gradam_exp_vac1.yml",
             # "--learnable_param",
             # "data/measles/auckland/learnable_param.yml",
             "--agents_data",
@@ -78,18 +78,23 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
     logger = setup_logging(workdir)
 
     logger.info("Reading configuration ...")
-    cfg = read_cfg(cfg)
+    cfg = read_cfg(cfg, key="train")
 
     logger.info("Preparing model running environment ...")
     prep_env()
 
     logger.info("Getting model input ...")
     model_inputs = prep_model_inputs(
-        agents_data, interaction_data, target_data, cfg["interaction"]
+        agents_data, interaction_data, target_data, cfg["interaction"], cfg["target"]
     )
 
     logger.info("Building ABM ...")
-    abm = build_abm(model_inputs["all_agents"], model_inputs["all_interactions"], cfg["infection"])
+    abm = build_abm(
+        model_inputs["all_agents"],
+        model_inputs["all_interactions"],
+        cfg["infection"],
+        None,
+    )
 
     logger.info("Creating initial parameters (to be trained) ...")
     param_model = create_param_model(cfg["learnable_params"])
@@ -97,6 +102,7 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
     logger.info("Creating loss function ...")
     loss_def = get_loss_func(param_model, model_inputs["total_timesteps"], cfg["optimization"])
     epoch_loss_list = []
+    param_values_list = []
     smallest_loss = INITIAL_LOSS
 
     for epi in range(cfg["optimization"]["num_epochs"]):
@@ -122,10 +128,14 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
             f"{epi}: Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; Lr: {round(loss_def['opt'].param_groups[0]['lr'], 5)}"
         )
 
+        if PRINT_INCRE:
+            get_params_increments(param_values_list)
+
         if epoch_loss < smallest_loss:
             param_with_smallest_loss = param_values_all
             smallest_loss = epoch_loss
         epoch_loss_list.append(epoch_loss)
+        param_values_list.append(param_values_all)
 
     logger.info(param_values_all)
 
@@ -137,9 +147,15 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
                 "total_timesteps": model_inputs["total_timesteps"],
                 "target": model_inputs["target"],
                 "epoch_loss_list": epoch_loss_list,
+                "param_values_list": param_values_list,
             },
             "params": {"param_with_smallest_loss": param_with_smallest_loss},
             "param_model": param_model,
+            # "agents": {
+            #    "all_target_indices": output["all_target_indices"],
+            #    "agents_area": output["agents_area"],
+            #    "agents_ethnicity": output["agents_ethnicity"],
+            # },
         },
         join(workdir, exp),
     )

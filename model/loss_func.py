@@ -87,7 +87,7 @@ def get_loss_func(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,
             # weight_decay=weight_decay,
-            # momentum=0.99,
+            # momentum=0.3,
             # weight_decay=0.0001,
             differentiable=False,
         )

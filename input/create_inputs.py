@@ -1,7 +1,7 @@
 from logging import getLogger
 from os.path import join
+from pickle import dump as pickle_dump
 
-from matplotlib.pyplot import axis, close, figure, pie, savefig, tight_layout, title
 from numpy.random import random as numpy_random
 from pandas import DataFrame
 from pandas import merge as pandas_merge
@@ -23,13 +23,17 @@ def write_target(workdir: str, target_path: str or None, dhb_list: list):
     if target_path is None:
         return
     target = read_parquet(target_path)
+    target.fillna(0, inplace=True)
+    target = target.set_index("Region")
+
+    # Create the list of all weeks using a for loop
+    all_weeks = ["Week_" + str(week) for week in range(0, 54)]
+    target = target.reindex(columns=all_weeks, fill_value=0)
 
     if dhb_list is not None:
-        target = target[target["Region"].isin(dhb_list)]
+        # target = target[target["Region"].isin(dhb_list)]
+        target = target.loc[dhb_list]
 
-    target.fillna(0, inplace=True)
-
-    target = target.set_index("Region")
     target = target.astype(float)
     target.loc["Total"] = target.sum(axis=0)
 
@@ -80,6 +84,7 @@ def get_agents(data, sa2, data_dir, vaccine_ratio, plot_agents=False):
     agents["ethnicity"] = agents["ethnicity"].map(ETHNICITY_INDEX)
 
     agents.to_parquet(join(data_dir, "agents.parquet"), index=False)
+    pickle_dump(sa2, open(join(data_dir, "all_areas.p"), "wb"))
 
     agents["row_number"] = range(len(agents))
 

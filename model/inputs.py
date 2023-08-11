@@ -29,6 +29,7 @@ class SeqData(torch.utils.data.Dataset):
 
 def train_data_wrapper(
     y_path,
+    target_cfg,
     batch_size: int = 1,
     shuffle: bool = True,
 ) -> DataLoader:
@@ -52,7 +53,9 @@ def train_data_wrapper(
         Returns:
             dict: Y data
         """
-        y_input = pandas_read_csv(y_path)[10:]
+        y_input = pandas_read_csv(y_path)[
+            target_cfg["start_timestep"] : target_cfg["end_timestep"]
+        ]
         y_input = y_input.to_numpy()
         y = []
         tensor_y = torch.from_numpy(array([y_input]).astype(numpy_float64))

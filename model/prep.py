@@ -13,10 +13,14 @@ def prep_env():
 
 
 def prep_model_inputs(
-    agent_path: str, interaction_path: str, target_data_path: str, interaction_cfg: str
+    agent_path: str,
+    interaction_path: str,
+    target_data_path: str,
+    interaction_cfg: str,
+    target_cfg: dict,
 ) -> dict:
     print("Step 1: Creating training background data ...")
-    target_data = train_data_wrapper(target_data_path)
+    target_data = train_data_wrapper(target_data_path, target_cfg)
 
     print("Step 2: Creating agents ...")
     all_agents = create_agents(agent_path, max_agents=None)

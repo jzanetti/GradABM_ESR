@@ -5,19 +5,19 @@ from cli.cli_predict import main as predict_main
 from cli.cli_train import main as train_main
 from input import INTERACTION_ENS_MEMBERS
 
-workdir = "/tmp/manukau_measles_2019"
+workdir = "/tmp/manukau_measles_2019_vac1"
 
 input_data = {
     "june_nz_data": "data/june_output/interaction_output.parquet",
-    "cfg": "data/measles/auckland/input_exp.yml",
+    "cfg": "data/measles/manukau/input_exp_vac1.yml",
     "target_data": "data/measles_cases_2019.parquet",
     "sa2_dhb_data": "data/dhb_and_sa2.parquet",
     "dhb_list": ["Counties Manukau"],
 }
 
-model_predict_cfg = "data/measles/auckland/gradam_exp.yml"
-run_input_main = True
-run_model_main = True
+model_cfg_path = "data/measles/manukau/gradam_exp_vac1.yml"
+run_input_main = False
+run_model_main = False
 run_predict_main = True
 
 if run_input_main:
@@ -35,7 +35,7 @@ if run_model_main:
         train_main(
             join(workdir, "model"),
             f"member_{proc_member}",
-            model_predict_cfg,
+            model_cfg_path,
             join(workdir, "input", "agents.parquet"),
             join(workdir, "input", f"interaction_graph_cfg_member_{proc_member}.parquet"),
             join(workdir, "input", "output.csv"),
@@ -43,4 +43,4 @@ if run_model_main:
 
 
 if run_predict_main:
-    predict_main(join(workdir, "predict"), model_predict_cfg, workdir, replace_agents_with=None)
+    predict_main(join(workdir, "predict"), model_cfg_path, workdir)

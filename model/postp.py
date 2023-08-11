@@ -16,6 +16,9 @@ def postproc(prediction, y) -> dict:
         "pred": prediction["prediction"][0, :],
         "all_records": prediction["all_records"],
         "y": y[0, :, 0],
+        "all_target_indices": prediction["all_target_indices"],
+        "agents_area": prediction["agents_area"],
+        "agents_ethnicity": prediction["agents_ethnicity"],
     }
     if REMOVE_WARM_UP_TIMESTEPS is not None:
         output["pred"] = output["pred"][REMOVE_WARM_UP_TIMESTEPS:]

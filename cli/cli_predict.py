@@ -15,7 +15,7 @@ import argparse
 from os import makedirs
 from os.path import exists, join
 
-from input import INTERACTION_ENS_MEMBERS
+from input import INTERACTION_ENS_MEMBERS, RANDOM_ENSEMBLES
 from model.abm import build_abm, forward_abm
 from model.diags import load_outputs, plot_diags
 from model.postp import postproc
@@ -58,7 +58,7 @@ def setup_parser():
 
     parser.add_argument(
         "--model_base_dir",
-        nargs="+",
+        type=str,
         help="Model base dir path (e.g., /tmp/manukau_measles_2019)",
         required=True,
     )
@@ -100,7 +100,7 @@ def setup_parser():
     )
 
 
-def main(workdir, cfg, model_base_dir, replace_agents_with: str or None = None):
+def main(workdir, cfg, model_base_dir):
     if not exists(workdir):
         makedirs(workdir)
 
@@ -112,63 +112,69 @@ def main(workdir, cfg, model_base_dir, replace_agents_with: str or None = None):
     logger.info("Getting data path ...")
     model_exps = join(model_base_dir, "model", "member_{proc_member}")
 
-    if replace_agents_with:
-        agents_data = replace_agents_with
-    else:
-        agents_data = join(model_base_dir, "input", "agents.parquet")
+    logger.info("Getting agents ...")
+    agents_data = join(model_base_dir, "input", "agents.parquet")
 
     interaction_data = join(
         model_base_dir, "input", "interaction_graph_cfg_member_{proc_member}.parquet"
     )
     target_data = join(model_base_dir, "input", "output.csv")
 
-    logger.info("Obtaininig data ...")
-    outputs = []
-    epoch_losses = []
-    for proc_member in range(INTERACTION_ENS_MEMBERS):  # INTERACTION_ENS_MEMBERS:
-        proc_model_member_dir = model_exps.format(proc_member=proc_member)
-        param_path = join(proc_model_member_dir, "params.p")
-        output_info_path = join(proc_model_member_dir, "output_info.p")
-        param_model_path = join(proc_model_member_dir, "param_model.model")
+    for proc_exp in cfg["predict"]:
+        logger.info(f"Obtaininig prediction for {proc_exp}...")
+        outputs = []
+        epoch_losses = []
+        for proc_member in range(INTERACTION_ENS_MEMBERS):
+            for _ in range(RANDOM_ENSEMBLES):
+                proc_model_member_dir = model_exps.format(proc_member=proc_member)
+                param_path = join(proc_model_member_dir, "params.p")
+                output_info_path = join(proc_model_member_dir, "output_info.p")
+                param_model_path = join(proc_model_member_dir, "param_model.model")
 
-        logger.info("Loading trained model ...")
-        trained_output = load_outputs(param_path, output_info_path, param_model_path)
+                logger.info("Loading trained model ...")
+                trained_output = load_outputs(param_path, output_info_path, param_model_path)
 
-        logger.info("Getting model input ...")
-        model_inputs = prep_model_inputs(
-            agents_data,
-            interaction_data.format(proc_member=proc_member),
-            target_data,
-            cfg["interaction"],
+                logger.info("Getting model input ...")
+                model_inputs = prep_model_inputs(
+                    agents_data,
+                    interaction_data.format(proc_member=proc_member),
+                    target_data,
+                    cfg["train"]["interaction"],
+                    cfg["train"]["target"],
+                )
+
+                logger.info("Building ABM ...")
+                abm = build_abm(
+                    model_inputs["all_agents"],
+                    model_inputs["all_interactions"],
+                    cfg["train"]["infection"],
+                    cfg["predict"][proc_exp],
+                )
+
+                logger.info("Creating prediction ...")
+                predictions = forward_abm(
+                    trained_output["param"]["param_with_smallest_loss"],
+                    trained_output["param_model"].param_info(),
+                    abm,
+                    trained_output["output_info"]["total_timesteps"],
+                    save_records=True,
+                )
+
+                logger.info("Output processing ...")
+                outputs.append(postproc(predictions, trained_output["output_info"]["target"]))
+
+                epoch_losses.append(trained_output["output_info"]["epoch_loss_list"])
+
+        logger.info("Visualization ...")
+        plot_diags(
+            join(workdir, proc_exp),
+            outputs,
+            epoch_losses,
+            cfg["predict"][proc_exp]["vis"],
+            apply_log_for_loss=False,
+            start_timestep=cfg["train"]["target"]["start_timestep"],
+            end_timestep=cfg["train"]["target"]["end_timestep"],
         )
-
-        logger.info("Building ABM ...")
-        abm = build_abm(
-            model_inputs["all_agents"], model_inputs["all_interactions"], cfg["infection"]
-        )
-
-        logger.info("Creating prediction ...")
-        predictions = forward_abm(
-            trained_output["param"]["param_with_smallest_loss"],
-            trained_output["param_model"].param_info(),
-            abm,
-            trained_output["output_info"]["total_timesteps"],
-            save_records=True,
-        )
-
-        logger.info("Output processing ...")
-        outputs.append(postproc(predictions, trained_output["output_info"]["target"]))
-
-        epoch_losses.append(trained_output["output_info"]["epoch_loss_list"])
-
-    logger.info("Visualization ...")
-    plot_diags(
-        workdir,
-        outputs,
-        epoch_losses,
-        cfg["temporal_res"],
-        apply_norm=False,
-    )
 
     logger.info("Job done ...")
 
