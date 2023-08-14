@@ -26,7 +26,9 @@ def prep_model_inputs(
     all_agents = create_agents(agent_path, max_agents=None)
 
     print("Step 3: Creating interactions ...")
-    all_interactions = create_interactions(interaction_cfg, interaction_path, len(all_agents))
+    all_interactions = create_interactions(
+        interaction_cfg, interaction_path, len(all_agents["id"].unique())
+    )
 
     return {
         "target": target_data["target"],

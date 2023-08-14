@@ -82,6 +82,7 @@ def plot_diags(
     apply_log_for_loss: bool = False,
     start_timestep: int or None = None,
     end_timestep: int or None = None,
+    plot_obs: bool = True,
 ):
     if not exists(workdir):
         makedirs(workdir)
@@ -218,7 +219,7 @@ def plot_diags(
     _, ax = subplots()
     for i, output in enumerate(outputs):
         my_pred = output["pred"].tolist()
-        if i == 0:
+        if i == 0 and plot_obs:
             my_targ = output["y"].tolist()
             plot(my_targ, color="k", linewidth=2.0, label="Observed cases")
 
@@ -242,9 +243,12 @@ def plot_diags(
         ax.set_xticklabels(tick_labels[::3])
 
     legend()
-    title(
-        f"JUNE-NZ validation {vis_cfg['name']} \n Simulation: {int(sum(my_pred))} vs Observed: {int(sum(my_targ))}"
-    )
+    if vis_cfg["pred"]["title_str"] is not None:
+        title(vis_cfg["pred"]["title_str"])
+    else:
+        title(
+            f"JUNE-NZ validation {vis_cfg['name']} \n Simulation: {int(sum(my_pred))} vs Observed: {int(sum(my_targ))}"
+        )
     xlabel(f"{vis_cfg['temporal_res']}")
     ylabel("Number of cases")
     tight_layout()

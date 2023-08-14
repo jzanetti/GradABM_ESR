@@ -5,17 +5,17 @@ from cli.cli_predict import main as predict_main
 from cli.cli_train import main as train_main
 from input import INTERACTION_ENS_MEMBERS
 
-workdir = "/tmp/manukau_measles_2019_vac1"
+workdir = "/tmp/manukau_measles_2019/policy_paper"
 
 input_data = {
     "june_nz_data": "data/june_output/interaction_output.parquet",
-    "cfg": "data/measles/manukau/input_exp_vac1.yml",
+    "cfg": "data/measles/policy_paper/base/input_exp_vac1.yml",
     "target_data": "data/measles_cases_2019.parquet",
     "sa2_dhb_data": "data/dhb_and_sa2.parquet",
     "dhb_list": ["Counties Manukau"],
 }
 
-model_cfg_path = "data/measles/manukau/gradam_exp_vac1.yml"
+model_cfg_path = "data/measles/policy_paper/base/gradam_exp_vac1.yml"
 run_input_main = False
 run_model_main = False
 run_predict_main = True

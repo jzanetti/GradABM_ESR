@@ -285,6 +285,9 @@ class GradABM:
                     t,
                 )
 
+        if t == 2:
+            x = 3
+
         newly_exposed_today = self.get_newly_exposed(
             self.proc_params["r0"], self.lam_gamma_integrals, t
         )
@@ -296,6 +299,8 @@ class GradABM:
             self.proc_params["infected_to_recovered_or_death_time"],
             t,
         )
+
+        # print(t, newly_exposed_today.sum(), target)
 
         # print(t, target)
         stage_records = None
@@ -328,9 +333,13 @@ class GradABM:
         )
 
         self.agents_infected_index = (
-            (self.current_stages == STAGE_INDEX["infected"]).bool().to(self.device)
+            (next_stages == STAGE_INDEX["infected"]).bool().to(self.device)
         )
-        self.agents_infected_index[recovered_dead_now.bool()] = False
+
+        # self.agents_infected_index = (
+        #    (self.current_stages == STAGE_INDEX["infected"]).bool().to(self.device)
+        # )
+        # self.agents_infected_index[recovered_dead_now.bool()] = False
         self.agents_infected_time[newly_exposed_today.bool()] = (
             t + self.proc_params["exposed_to_infected_time"]
         )

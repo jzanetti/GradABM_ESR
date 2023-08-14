@@ -105,6 +105,8 @@ class SEIRMProgression(DiseaseProgression):
 
             prob_infected *= initial_infected_sa2_mask.unsqueeze(1)
 
+            prob_infected[prob_infected > 0] = 1.0
+
         p = torch_hstack((prob_infected, 1 - prob_infected))
         cat_logits = torch_log(p + 1e-9)
         if TORCH_SEED_NUM is not None:

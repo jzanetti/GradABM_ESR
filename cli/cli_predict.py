@@ -15,6 +15,8 @@ import argparse
 from os import makedirs
 from os.path import exists, join
 
+from torch.cuda import empty_cache
+
 from input import INTERACTION_ENS_MEMBERS, RANDOM_ENSEMBLES
 from model.abm import build_abm, forward_abm
 from model.diags import load_outputs, plot_diags
@@ -165,6 +167,8 @@ def main(workdir, cfg, model_base_dir):
 
                 epoch_losses.append(trained_output["output_info"]["epoch_loss_list"])
 
+            empty_cache()
+
         logger.info("Visualization ...")
         plot_diags(
             join(workdir, proc_exp),
@@ -174,6 +178,7 @@ def main(workdir, cfg, model_base_dir):
             apply_log_for_loss=False,
             start_timestep=cfg["train"]["target"]["start_timestep"],
             end_timestep=cfg["train"]["target"]["end_timestep"],
+            plot_obs=False,
         )
 
     logger.info("Job done ...")

@@ -91,6 +91,9 @@ def get_agents(data, sa2, data_dir, vaccine_ratio, plot_agents=False):
     if plot_agents:
         agents_vis(agents, sa2)
 
+    agents_group = data[["id", "group"]].drop_duplicates()
+    agents_group.to_parquet(join(data_dir, "agents_group.parquet"), index=False)
+
     return agents
 
 
