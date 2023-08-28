@@ -1,12 +1,6 @@
 from matplotlib.pyplot import axis, close, figure, pie, savefig, tight_layout, title
 
-from input import (
-    AGE_INDEX,
-    ETHNICITY_INDEX,
-    INTERACTION_ENS_MEMBERS,
-    LOC_INDEX,
-    SEX_INDEX,
-)
+from input import AGE_INDEX, ETHNICITY_INDEX, SEX_INDEX
 
 
 def agents_vis(agents, sa2):

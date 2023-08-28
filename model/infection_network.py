@@ -16,7 +16,7 @@ logger = getLogger()
 
 
 def infected_case_isolation(
-    infected_idx, isolation_compliance_rate, isolation_intensity, min_cases: int = 10
+    infected_idx, isolation_compliance_rate, isolation_intensity, t, min_cases: int = 10
 ):
     """Create infected case isolation scaling factor
 
@@ -26,7 +26,7 @@ def infected_case_isolation(
     Returns:
         _type_: Scaling factor for infected case
     """
-    if isolation_compliance_rate is None:
+    if (isolation_compliance_rate) is None or (t == 0):
         return torch_ones_like(infected_idx)
 
     # infected agents (0.0: uninfected; 1.0: infected)
@@ -87,20 +87,16 @@ def lam(
         * SFSusceptibility_vaccine[x_i[:, 3].long()]
     )  # age * sex * ethnicity dependant * vaccine
 
+    if t in [2, 3]:
+        x = 3
+
     A_s_i = SFInfector[x_j[:, 4].long()]  # stage dependant
 
     B_n = edge_attr[1, :]
     integrals = torch_zeros_like(B_n)
-    infected_idx = x_j[:, 5].bool()
+    # infected_idx = x_j[:, 5].bool()
+    infected_idx = x_j[:, 4].long() == 2.0
     infected_times = t - x_j[infected_idx, 6]
-
-    # total_infected = infected_idx.tolist().count(True)
-    # max_infected_time = None
-    # min_infected_times = None
-    # if total_infected > 0:
-    #    max_infected_time = infected_times.max()
-    #    min_infected_times = infected_times.min()
-    # logger.info(f"{t}: The longest infection time is {max_infected_time}/{min_infected_times}")
 
     integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
 
@@ -109,54 +105,20 @@ def lam(
         infected_idx,
         outbreak_ctl_cfg["isolation"]["compliance_rate"],
         outbreak_ctl_cfg["isolation"]["isolation_sf"],
+        t,
     )
 
     edge_network_numbers = edge_attr[
         0, :
     ]  # to account for the fact that mean interactions start at 4th position of x
     I_bar = torch_gather(x_i[:, 7:30], 1, edge_network_numbers.view(-1, 1).long()).view(-1)
-    # to account for the fact that mean interactions start at 4th position of x. how we can explain the above ?
-    # let's assume that:
-    # x_i =
-    #   1   2   3   4
-    #   1   2   3   4
-    #   1   2   3   4
-    # edge_network_numbers = [2, 0, 3], so edge_network_numbers.view(-1, 1).long() =
-    #    2
-    #    0
-    #    3
-    # torch.gather(input, dim, index) is a function that gathers elements from input tensor
-    # along the specified dim using the indices provided in the index tensor.
-    # In our case, x is the input tensor, 1 is the dimension along which we want to gather elements (columns),
-    # and edge_network_numbers.view(-1, 1).long() are the indices specifying which elements to gather.
-    # In our example, this step gathers the elements from x using the indices [2, 0, 3] along the columns dimension (dim=1):
-    # So we have:
-    # 3   1   4
-    # 1   1   4
-    # 3   1   4
-    # And then .view(-1) reshapes the tensor into a 1-dimensional tensor, e.g.,
-    # 3   1   4   1   1   4   3   1   4
-
-    # Value range:
-    #  - R: 0.1 - 15.0
-    #  - S_A_s: 0.35 - 1.52
-    #  - A_s_i: 0.0 - 0.72
-    #  - integrals: 1.52
-    #  - B_n: 0.1
-    #  - I_bar: 2
 
     if perturbation_flag:
-        from random import uniform as random_uniform
-
         R = random_uniform(R * 0.7, R * 1.3)
 
     res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
 
-    # res = R * S_A_s * A_s_i * B_n * integrals / I_bar
-    # import random
-
-    # random_number_test = random.randint(0, 100)
-    # res[random_number_test] = 0.001
+    # print(t, integrals[infected_idx].sum(), res.sum())
 
     return res.view(-1, 1)
 

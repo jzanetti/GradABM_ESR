@@ -1,3 +1,9 @@
 *.pyc
 *.parquet
 *.png
+*.p
+exp
+gradabm_esr.202*
+log
+*.out
+*.csv

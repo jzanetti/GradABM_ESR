@@ -17,10 +17,9 @@ from os.path import exists, join
 
 from torch.cuda import empty_cache
 
-from input import INTERACTION_ENS_MEMBERS, RANDOM_ENSEMBLES
 from model.abm import build_abm, forward_abm
 from model.diags import load_outputs, plot_diags
-from model.postp import postproc
+from model.postp import postproc_pred, write_output
 from model.prep import prep_model_inputs
 from utils.utils import read_cfg, setup_logging
 
@@ -73,22 +72,24 @@ def setup_parser():
         "ABM but using trained parameters)",
     )
 
-    """
-        [
-            "--workdir",
-            "/tmp/gradabm_esr_pred2",
-            "--model_exp",
-            "/tmp/gradabm_esr/test1"
-            "--cfg",
-            "cfg/sample_cfg/gradam_exp.yml",
-            "--agents_data",
-            "/tmp/gradabm_esr_input2/agents.parquet",
-            "--interaction_data",
-            "/tmp/gradabm_esr_input2/interaction_graph_cfg.parquet",
-            "--target_data",
-            "data/exp4/targets3.csv",
-        ]
-    """
+    parser.add_argument("--exp_id", required=True, help="Experiment name/id, e.g., base_exp")
+
+    parser.add_argument(
+        "--model_id",
+        required=False,
+        default=0,
+        help="Trained model ID [default: 0], "
+        "for example, by default the paramters will be "
+        "taken from member_0",
+    )
+
+    parser.add_argument(
+        "--ens_id",
+        required=False,
+        default=0,
+        help="Ensemble run ID [default: 0], "
+        "the same model can produce differnet ensembles, this ID is used to identify different ens runs",
+    )
 
     return parser.parse_args(
         [
@@ -98,11 +99,17 @@ def setup_parser():
             "/tmp/manukau_measles_2019",
             "--cfg",
             "data/measles/auckland/gradam_exp.yml",
+            "--exp_id",
+            "base_exp",
+            "--model_id",
+            "0",
+            "--ens_id",
+            "0",
         ]
     )
 
 
-def main(workdir, cfg, model_base_dir):
+def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
     if not exists(workdir):
         makedirs(workdir)
 
@@ -122,68 +129,60 @@ def main(workdir, cfg, model_base_dir):
     )
     target_data = join(model_base_dir, "input", "output.csv")
 
-    for proc_exp in cfg["predict"]:
-        logger.info(f"Obtaininig prediction for {proc_exp}...")
-        outputs = []
-        epoch_losses = []
-        for proc_member in range(INTERACTION_ENS_MEMBERS):
-            for _ in range(RANDOM_ENSEMBLES):
-                proc_model_member_dir = model_exps.format(proc_member=proc_member)
-                param_path = join(proc_model_member_dir, "params.p")
-                output_info_path = join(proc_model_member_dir, "output_info.p")
-                param_model_path = join(proc_model_member_dir, "param_model.model")
+    logger.info(f"Obtaininig prediction for {proc_exp}...")
+    proc_model_member_dir = model_exps.format(proc_member=model_id)
+    param_path = join(proc_model_member_dir, "params.p")
+    output_info_path = join(proc_model_member_dir, "output_info.p")
+    param_model_path = join(proc_model_member_dir, "param_model.model")
 
-                logger.info("Loading trained model ...")
-                trained_output = load_outputs(param_path, output_info_path, param_model_path)
+    logger.info("Loading trained model ...")
+    trained_output = load_outputs(param_path, output_info_path, param_model_path)
 
-                logger.info("Getting model input ...")
-                model_inputs = prep_model_inputs(
-                    agents_data,
-                    interaction_data.format(proc_member=proc_member),
-                    target_data,
-                    cfg["train"]["interaction"],
-                    cfg["train"]["target"],
-                )
+    logger.info("Getting model input ...")
+    model_inputs = prep_model_inputs(
+        agents_data,
+        interaction_data.format(proc_member=model_id),
+        target_data,
+        cfg["train"]["interaction"],
+        cfg["train"]["target"],
+    )
 
-                logger.info("Building ABM ...")
-                abm = build_abm(
-                    model_inputs["all_agents"],
-                    model_inputs["all_interactions"],
-                    cfg["train"]["infection"],
-                    cfg["predict"][proc_exp],
-                )
+    logger.info("Building ABM ...")
+    abm = build_abm(
+        model_inputs["all_agents"],
+        model_inputs["all_interactions"],
+        cfg["train"]["infection"],
+        cfg["predict"][proc_exp],
+    )
 
-                logger.info("Creating prediction ...")
-                predictions = forward_abm(
-                    trained_output["param"]["param_with_smallest_loss"],
-                    trained_output["param_model"].param_info(),
-                    abm,
-                    trained_output["output_info"]["total_timesteps"],
-                    save_records=True,
-                )
+    logger.info("Creating prediction ...")
+    predictions = forward_abm(
+        trained_output["param"]["param_with_smallest_loss"],
+        trained_output["param_model"].param_info(),
+        abm,
+        trained_output["output_info"]["total_timesteps"],
+        save_records=True,
+    )
 
-                logger.info("Output processing ...")
-                outputs.append(postproc(predictions, trained_output["output_info"]["target"]))
-
-                epoch_losses.append(trained_output["output_info"]["epoch_loss_list"])
-
-            empty_cache()
-
-        logger.info("Visualization ...")
-        plot_diags(
-            join(workdir, proc_exp),
-            outputs,
-            epoch_losses,
-            cfg["predict"][proc_exp]["vis"],
-            apply_log_for_loss=False,
-            start_timestep=cfg["train"]["target"]["start_timestep"],
-            end_timestep=cfg["train"]["target"]["end_timestep"],
-            plot_obs=False,
-        )
+    logger.info("Output processing ...")
+    output = postproc_pred(
+        predictions,
+        trained_output["output_info"]["target"],
+        cfg["predict"]["common"]["start"]["timestep"],
+        cfg["predict"]["common"]["end"]["timestep"],
+    )
+    write_output(
+        output,
+        trained_output["output_info"]["epoch_loss_list"],
+        workdir,
+        proc_exp,
+        model_id,
+        ens_id,
+    )
 
     logger.info("Job done ...")
 
 
 if __name__ == "__main__":
     args = setup_parser()
-    main(args.workdir, args.cfg, args.model_base_dir)
+    main(args.workdir, args.cfg, args.model_base_dir, args.exp_id, args.model_id, args.ens_id)

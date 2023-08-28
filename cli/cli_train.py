@@ -16,7 +16,7 @@ from model.abm import build_abm, forward_abm
 from model.diags import save_outputs
 from model.loss_func import get_loss_func, loss_optimization
 from model.param_model import create_param_model, param_model_forward
-from model.postp import postproc
+from model.postp import postproc_train
 from model.prep import prep_env, prep_model_inputs
 from utils.utils import get_params_increments, read_cfg, setup_logging
 
@@ -116,7 +116,7 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
             save_records=False,
         )
 
-        output = postproc(predictions, model_inputs["target"])
+        output = postproc_train(predictions, model_inputs["target"])
 
         loss = loss_def["loss_func"](output["y"], output["pred"])
 
@@ -151,11 +151,6 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
             },
             "params": {"param_with_smallest_loss": param_with_smallest_loss},
             "param_model": param_model,
-            # "agents": {
-            #    "all_target_indices": output["all_target_indices"],
-            #    "agents_area": output["agents_area"],
-            #    "agents_ethnicity": output["agents_ethnicity"],
-            # },
         },
         join(workdir, exp),
     )

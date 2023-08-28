@@ -1,19 +1,15 @@
+from glob import glob
 from logging import getLogger
 from os.path import join
 from pickle import dump as pickle_dump
+from re import findall as re_findall
 
 from numpy.random import random as numpy_random
-from pandas import DataFrame
+from pandas import DataFrame, concat
 from pandas import merge as pandas_merge
 from pandas import read_parquet
 
-from input import (
-    AGE_INDEX,
-    ETHNICITY_INDEX,
-    INTERACTION_ENS_MEMBERS,
-    LOC_INDEX,
-    SEX_INDEX,
-)
+from input import AGE_INDEX, ETHNICITY_INDEX, LOC_INDEX, SEX_INDEX, TRAINING_ENS_MEMBERS
 from input.vis import agents_vis
 
 logger = getLogger()
@@ -61,7 +57,19 @@ def get_sa2_from_dhb(dhb_sa2_map_data_path, dhb_list):
 
 
 def read_june_nz_inputs(june_nz_data) -> DataFrame:
-    data = read_parquet(june_nz_data)
+    if june_nz_data.endswith("parquet"):
+        data = read_parquet(june_nz_data)
+    else:
+        data = []
+        for proc_file in glob(june_nz_data + "/*.parquet"):
+            proc_data = read_parquet(proc_file)
+            proc_time = re_findall(r"\d{8}T\d{2}", proc_file)[0]
+            proc_data["time"] = proc_time
+            data.append(proc_data)
+
+        data = concat(data, ignore_index=True)
+    data = data.drop_duplicates()
+
     return data.drop_duplicates()
 
 
@@ -97,25 +105,46 @@ def get_agents(data, sa2, data_dir, vaccine_ratio, plot_agents=False):
     return agents
 
 
-def get_interactions(data, agents, sa2, data_dir, percentage_each_member: float = 0.5):
+def select_rows_by_spec(df, spec_value, percentage):
+    spec_rows = df[df["spec"] == spec_value]
+    selected_rows = spec_rows.sample(frac=percentage)
+    return selected_rows
+
+
+def get_interactions(data, agents, sa2, data_dir, interaction_ratio_cfg):
     if sa2 is not None:
         data = data[data["area"].isin(sa2)]
 
     data = data[["id", "group", "spec"]]
 
-    for proc_member in range(INTERACTION_ENS_MEMBERS):
-        sampled_df = data.sample(frac=percentage_each_member)
+    id_num = len(data["id"].unique())
 
-        logger.info(f"Processing member {proc_member} / {INTERACTION_ENS_MEMBERS}")
+    logger.info(f"Total population: {id_num}")
+
+    for proc_member in range(TRAINING_ENS_MEMBERS):
+        logger.info(f"Processing member {proc_member} / {TRAINING_ENS_MEMBERS}")
+        sampled_df = []
+        for spec_value in list(data["spec"].unique()):
+            logger.info(f"   Processing {spec_value}: {interaction_ratio_cfg[spec_value]} ...")
+            sampled_df.append(
+                select_rows_by_spec(data, spec_value, interaction_ratio_cfg[spec_value])
+            )
+
+        logger.info(f"   Combining all interaction inputs ...")
+        sampled_df = concat(sampled_df, ignore_index=True)
 
         logger.info("   Start interaction merging process ...")
         interactions = pandas_merge(sampled_df, sampled_df, on="group")
 
         logger.info("   Filtering out self interactions ...")
         interactions = interactions[interactions["id_x"] != interactions["id_y"]]
+        # mask = interactions["id_x"] != interactions["id_y"]
+        # interactions = interactions[mask]
 
+        logger.info("   Selecting subset of columns ...")
         interactions = interactions[["id_x", "id_y", "spec_x"]]
 
+        logger.info("   Removing hospitals ...")
         interactions = interactions[interactions["spec_x"] != "hospital"]
 
         logger.info("   Mapping location index ...")

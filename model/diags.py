@@ -21,8 +21,19 @@ from matplotlib.pyplot import (
     ylim,
     yscale,
 )
-from numpy import array, count_nonzero, max, min, random
-from pandas import Series, read_csv
+from numpy import NaN, array, bincount, count_nonzero, isnan, max, min, random, unique
+from numpy.ma import MaskedArray as ma_maskedarray
+from numpy.ma import average as ma_average
+from pandas import (
+    DataFrame,
+    Series,
+    concat,
+    melt,
+    merge,
+    read_csv,
+    read_excel,
+    to_numeric,
+)
 from PIL import Image
 from pyproj import CRS, Transformer
 from shapely.geometry import Point
@@ -33,6 +44,28 @@ from torch import save as torch_save
 from model import STAGE_INDEX
 
 logger = getLogger()
+
+
+def read_population(population_path: str):
+    """Read population
+
+    Args:
+        population_path (str): Population data path
+    """
+    data = read_excel(population_path, header=6)
+
+    data = data.rename(columns={"Area": "area", "Unnamed: 2": "population"})
+
+    data = data.drop("Unnamed: 1", axis=1)
+
+    # Drop the last row
+    data = data.drop(data.index[-1])
+
+    data = data.astype(int)
+
+    data = data[data["area"] > 10000]
+
+    return data
 
 
 def save_outputs(param_model, workdir):
@@ -79,9 +112,10 @@ def plot_diags(
     outputs,
     epoch_loss_lists,
     vis_cfg,
+    predict_common_cfg,
     apply_log_for_loss: bool = False,
-    start_timestep: int or None = None,
-    end_timestep: int or None = None,
+    # start_timestep: int or None = None,
+    # end_timestep: int or None = None,
     plot_obs: bool = True,
 ):
     if not exists(workdir):
@@ -89,6 +123,8 @@ def plot_diags(
 
     for i, output in enumerate(outputs):
         my_pred = output["pred"].tolist()
+
+        # sf = _apply_scaling_func(my_pred, apply_scaling)
 
         # ----------------------------
         # Plot agents
@@ -118,7 +154,6 @@ def plot_diags(
     xlabel(vis_cfg["temporal_res"])
     ylabel("Number of agents")
     title("Agent symptom")
-    legend()
     tight_layout()
     savefig(join(workdir, "Agents.png"), bbox_inches="tight")
     close()
@@ -130,8 +165,13 @@ def plot_diags(
         tmp_dir = join(workdir, "tmp")
         if not exists(tmp_dir):
             makedirs(tmp_dir)
+
+        if vis_cfg["agents_map"]["pop_based_interpolation"]["enable"]:
+            pop = read_population(vis_cfg["agents_map"]["pop_based_interpolation"]["pop_path"])
+
         sa2 = read_csv(vis_cfg["agents_map"]["sa2_path"])
         sa2 = sa2.loc[sa2["LAND_AREA_SQ_KM"] > 0]
+        """
         gdf = GeoDataFrame(sa2, geometry=GeoSeries.from_wkt(sa2["WKT"]))
         gdf = gdf.cx[
             vis_cfg["agents_map"]["domain"]["min_lon"] : vis_cfg["agents_map"]["domain"][
@@ -141,39 +181,142 @@ def plot_diags(
                 "max_lat"
             ],
         ]
+        """
+        sa2 = GeoDataFrame(sa2, geometry=GeoSeries.from_wkt(sa2["WKT"]))
+        sa2 = sa2.cx[
+            vis_cfg["agents_map"]["domain"]["min_lon"] : vis_cfg["agents_map"]["domain"][
+                "max_lon"
+            ],
+            vis_cfg["agents_map"]["domain"]["min_lat"] : vis_cfg["agents_map"]["domain"][
+                "max_lat"
+            ],
+        ]
         proc_latlons = []
         proc_attrs = []
-        for t in range(vis_cfg["agents_map"]["start_t"], len(output["all_target_indices"])):
-            proc_indices = output["all_target_indices"][t]
-            if len(proc_indices) == 0:
-                continue
+        proc_indices = []
+        for t in range(0, len(outputs[0]["all_target_indices"])):
+            if vis_cfg["agents_map"]["individuals"]:
+                output = outputs[0]
+                proc_index = output["all_target_indices"][t]
+                if len(proc_index) == 0:
+                    continue
 
-            # num_to_select = int(len(proc_indices) * random.uniform(0.1, 0.3))
-            # from random import sample as random_sample
+                proc_latlon = obtain_sa2_info(
+                    sa2, array(output["agents_area"])[proc_index], output["agents_ethnicity"]
+                )
+                proc_attr = array(output["agents_ethnicity"])[proc_index]
 
-            # Randomly select items
-            # proc_indices = random_sample(list(proc_indices), num_to_select)
+                scatter_colors = {0: "b", 1: "g", 2: "r", 3: "c", 4: "m"}
+                colors = [scatter_colors[val] for val in proc_attr]
 
-            proc_latlon = obtain_sa2_info(
-                sa2, array(output["agents_area"])[proc_indices], output["agents_ethnicity"]
-            )
-            proc_attr = array(output["agents_ethnicity"])[proc_indices]
+                proc_latlons.extend(proc_latlon)
+                proc_attrs.extend(colors)
 
-            scatter_colors = {0: "b", 1: "g", 2: "r", 3: "c", 4: "m"}
-            colors = [scatter_colors[val] for val in proc_attr]
+                lats = [lat for lat, _ in proc_latlons]
+                lons = [lon for _, lon in proc_latlons]
+                # gdf.plot(figsize=(10, 10))
+                sa2.plot(figsize=(10, 10))
 
-            proc_latlons.extend(proc_latlon)
-            proc_attrs.extend(colors)
+                scatter(lons, lats, color=proc_attrs, marker="x")
+                tight_layout()
+                title(f"{t}, Total agents: {len(proc_latlons)}")
+                savefig(join(tmp_dir, f"agents_{t}.png"), bbox_inches="tight")
+                close()
+            else:
+                print(f"    agent map at {t}")
+                for output in outputs:
+                    proc_index = output["all_target_indices"][t]
+                    if len(proc_index) == 0:
+                        continue
 
-            lats = [lat for lat, _ in proc_latlons]
-            lons = [lon for _, lon in proc_latlons]
-            gdf.plot(figsize=(10, 10))
+                    proc_indices.extend(proc_index)
 
-            scatter(lons, lats, color=proc_attrs, marker="x")
-            tight_layout()
-            title(f"{t}, Total agents: {len(proc_latlons)}")
-            savefig(join(tmp_dir, f"agents_{t}.png"), bbox_inches="tight")
-            close()
+                all_agents_areas = array(output["agents_area"])[proc_indices]
+                occurrences = bincount(all_agents_areas)
+
+                occurrences_dict = dict(
+                    zip(unique(all_agents_areas), occurrences[unique(all_agents_areas)])
+                )
+                sa2["agents_occurrences"] = sa2["SA22018_V1_00"].map(occurrences_dict)
+                sa2["agents_occurrences"] = sa2["agents_occurrences"].fillna(0.0)
+                # sa2["agents_occurrences"] = sa2["agents_occurrences"] / len(outputs)
+
+                mask = (sa2["agents_occurrences"] > 0) & (sa2["agents_occurrences"] < 1.0)
+                sa2.loc[mask, "agents_occurrences"] = 1.0
+
+                sa2.loc[sa2["agents_occurrences"] == 0.0, "agents_occurrences"] = NaN
+
+                # sa2 = GeoDataFrame(sa2, geometry=GeoSeries.from_wkt(sa2["WKT"]))
+
+                if vis_cfg["agents_map"]["pop_based_interpolation"]["enable"]:
+                    sa2["representative_point"] = sa2.representative_point()
+                    if "population" not in sa2.columns:
+                        sa2 = sa2.merge(pop, left_on="SA22018_V1_00", right_on="area", how="left")
+
+                    for index, row in sa2[sa2["agents_occurrences"].isnull()].iterrows():
+                        target_geometry = row["representative_point"]
+
+                        # Find the nearest geometry and index
+                        nearest_index = list(
+                            sa2["representative_point"]
+                            .distance(target_geometry)
+                            .nsmallest(3)
+                            .index
+                        )
+                        nearest_index.remove(index)
+                        nearest_geometry = sa2.loc[
+                            nearest_index,
+                            ["SA22018_V1_00", "agents_occurrences", "geometry", "population"],
+                        ]
+
+                        # if not nearest_geometry["agents_occurrences"].isna().all():
+                        #    x = 3
+
+                        ma = ma_maskedarray(
+                            nearest_geometry["agents_occurrences"],
+                            mask=isnan(
+                                nearest_geometry["agents_occurrences"],
+                            ),
+                        )
+                        weighted_avg = ma_average(ma, weights=nearest_geometry["population"])
+
+                        sa2.at[index, "agents_occurrences"] = weighted_avg
+
+                _, ax = subplots(1, 1, figsize=(10, 10))
+                sa2.plot(
+                    column="agents_occurrences",
+                    cmap="Reds",
+                    legend=True,
+                    ax=ax,
+                    legend_kwds={"shrink": 0.3},
+                    vmin=0,
+                    vmax=int(output["pred"].sum().item() * 1.0),
+                )
+                sa2.boundary.plot(linewidth=0.3, color="k", linestyle="solid", ax=ax)
+                ax.set_xlim(
+                    vis_cfg["agents_map"]["domain"]["min_lon"],
+                    vis_cfg["agents_map"]["domain"]["max_lon"],
+                )
+                ax.set_ylim(
+                    vis_cfg["agents_map"]["domain"]["min_lat"],
+                    vis_cfg["agents_map"]["domain"]["max_lat"],
+                )
+
+                if vis_cfg["agents_map"]["highlight_sa2"] is not None:
+                    highlighted_areas = sa2[
+                        sa2["SA22018_V1_00"].isin(vis_cfg["agents_map"]["highlight_sa2"])
+                    ]
+                    highlighted_areas.plot(
+                        ax=ax,
+                        color="blue",  # You can choose any color you want
+                        legend=False,  # You can adjust this based on your needs
+                        # label="Highlighted Areas",  # Label for the legend
+                    )
+
+                tight_layout()
+                # title(f"{t}, {total_agents}")
+                savefig(join(tmp_dir, f"agents_{t}.png"), bbox_inches="tight")
+                close()
 
         png_files = [f for f in listdir(tmp_dir) if f.endswith(".png")]
         png_files = sorted(png_files, key=lambda item: int(item.split("_")[1].split(".")[0]))
@@ -235,12 +378,19 @@ def plot_diags(
         x = range(len(y_min))
         ax.fill_between(x, y_min, y_max, alpha=0.5)
 
-    if start_timestep is not None and end_timestep is not None:
-        # Set the x-axis tick positions and labels
-        xtick_positions = list(range(start_timestep, end_timestep))
-        tick_labels = [str(tick) for tick in xtick_positions]
-        ax.set_xticks(x[::3])
-        ax.set_xticklabels(tick_labels[::3])
+    start_name = 0
+    if predict_common_cfg["start"]["name"] is not None:
+        start_name = predict_common_cfg["start"]["name"]
+
+    end_time = start_name + len(x)
+    if predict_common_cfg["end"]["name"] is not None:
+        end_time = predict_common_cfg["end"]["name"]
+
+    #    # Set the x-axis tick positions and labels
+    xtick_positions = list(range(start_name, end_time))
+    tick_labels = [str(tick) for tick in xtick_positions]
+    ax.set_xticks(x[::3])
+    ax.set_xticklabels(tick_labels[::3])
 
     legend()
     if vis_cfg["pred"]["title_str"] is not None:

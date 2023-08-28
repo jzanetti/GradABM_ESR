@@ -1,0 +1,30 @@
+
+vis:
+  timestep_cfg:
+    start:
+      timestep: 4
+      name: 29 # null 25 + 4
+    end:
+      timestep: -1
+      name: null # null
+
+  vis:
+    temporal_res: weeks
+    name: Manukau DHB
+    pred:
+      title_str: "JUNE-NZ validation, Manukau DHB"
+      # "Number of cases (origin: 147900)"
+    agents_map:
+      enable: false
+      individuals: false
+      sa2_path: /home/zhangs/Github/JUNE_NZ_data/geography/statistical-area-2-2018-generalised.csv
+      pop_based_interpolation:
+        enable: false
+        pop_path: https://github.com/jzanetti/JUNE_NZ_data/raw/main/demography/total_population.xlsx
+      highlight_sa2:
+        - 147900
+      domain:
+        min_lat: -37.25 #-38.00
+        max_lat: -36.75 #-36.00
+        min_lon: 174.72 #173.5
+        max_lon: 175.25 #175.5

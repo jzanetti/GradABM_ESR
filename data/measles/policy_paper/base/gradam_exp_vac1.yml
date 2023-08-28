@@ -11,9 +11,9 @@ train:
       basic_lr: 0.1
       adaptive_lr:
         enable: true
-        step: 20
+        step: 15
         reduction_ratio: 0.9
-    num_epochs: 100
+    num_epochs: 30
     clip_grad_norm: 10.0
 
   # -------------------------------------------
@@ -106,27 +106,27 @@ train:
       enable: true
       min: 0.1
       max: 15.0
-      default: 3.0
+      default: 3.0 # 3.0
     initial_infected_percentage:
       enable: true
       min: 0.01
-      max: 1.5
-      default: 0.75
+      max: 0.002
+      default: 0.001
     random_infected_percentgae:
       enable: true
       min: 0.01
-      max: 1.0
-      default: 0.5
+      max: 0.15
+      default: 0.06 # 0.5
     exposed_to_infected_time:
       enable: false
       min: 0.1
       max: 1.5
-      default: 2.0
+      default: 1.0
     infected_to_recovered_or_death_time:
       enable: false
       min: 1.0
       max: 3.0
-      default: 2.0
+      default: 1.0
     infection_gamma_shape:
       enable: true
       min: 1.0
@@ -140,26 +140,38 @@ train:
     infection_gamma_scaling_factor: # decide how fast the disease spread
       enable: true
       min: 0.01
-      max: 2.0
-      default: 1.0
+      max: 0.25
+      default: 0.17
+  
   # -------------------------------------------
   # Section 1.4: Learnable parmaters via NN
   # -------------------------------------------
   target:
-    start_timestep: null # 25
-    end_timestep: null # 51
+    start_timestep: 25
+    end_timestep: 51
 
 # <><><><><><><><><><><><><><><><><><><><>
 # Chapter 2. Prediction & Visualization
 # <><><><><><><><><><><><><><><><><><><><>
 predict:
+  common:
+    start:
+      timestep: 4
+      name: null
+    end:
+      timestep: -1
+      name: null
   base_exp:
     # temporal_res: week
-    initial_infected_sa2: # null
-      - 147900
-    use_random_infection: false
+    initial_infected_sa2: null
+    # - 147900
+    use_random_infection: true
     scaling_factor_update:
-      perturbation: true
+      vaccine:
+        - 1.0 # 0: not vaccined (e.g., 1.0)
+        - 0.5 # 1: vaccined (e.g., 0.0001)
+    outbreak_ctl_update:
+      perturbation: false
       outbreak_ctl:
         isolation: # for infected cases
           compliance_rate: 0.7 # float (e.g., 0.9) or None
@@ -173,18 +185,3 @@ predict:
           compliance_rate: 1.0
         school_closure: # enable if infected case identified
           enable: true
-
-    vis:
-      temporal_res: weeks
-      name: Manukau DHB
-      pred:
-        title_str: "Number of cases (origin: 147900)"
-      agents_map:
-        enable: true
-        sa2_path: /home/zhangs/Github/JUNE_NZ_data/geography/statistical-area-2-2018-generalised.csv
-        start_t: 3
-        domain:
-          min_lat: -38.00
-          max_lat: -36.00
-          min_lon: 173.5
-          max_lon: 175.5

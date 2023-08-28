@@ -67,7 +67,8 @@ def setup_parser():
     return parser.parse_args(
         [
             "--june_nz_data",
-            "/tmp/june_realworld_auckland/interaction_output.parquet",
+            # "/tmp/june_realworld_auckland/interaction_output.parquet",
+            "/tmp/june_realworld_auckland/interaction_output",
             "--sa2_dhb_data",
             "data/dhb_and_sa2.parquet",
             "--workdir",
@@ -115,7 +116,7 @@ def main(
     agents = get_agents(data, sa2, workdir, cfg["vaccine_ratio"], plot_agents=False)
 
     logger.info("Creating interactions ...")
-    get_interactions(data, agents, sa2, workdir)
+    get_interactions(data, agents, sa2, workdir, cfg["interaction_ratio"])
 
     logger.info("Job done ...")
 

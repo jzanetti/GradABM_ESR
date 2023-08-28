@@ -39,6 +39,7 @@ def get_params(learnable_params: dict) -> dict:
     param_min = []
     param_max = []
     learnable_params_list = []
+    learnable_param_others = []
     for param_name in learnable_params:
         if learnable_params[param_name]["enable"]:
             learnable_param_order.append(param_name)
@@ -50,12 +51,15 @@ def get_params(learnable_params: dict) -> dict:
         else:
             learnable_param_default[param_name] = learnable_params[param_name]["default"]
 
+        # learnable_param_others[param_name].append(learnable_params[param_name]["others"])
+
     return {
         "learnable_param_order": learnable_param_order,
         "learnable_param_default": learnable_param_default,
         "param_min": param_min,
         "param_max": param_max,
         "learnable_params_list": learnable_params_list,
+        "others": learnable_param_others,
     }
 
 

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import copy as shallow_copy
+from logging import getLogger
 
 import torch
 import torch.nn.functional as F
@@ -16,6 +17,8 @@ from model import ALL_PARAMS, DEVICE, STAGE_INDEX, TORCH_SEED_NUM, USE_TEMPORAL_
 from model.infection_network import InfectionNetwork
 from model.seirm_progression import SEIRMProgression
 from utils.utils import create_random_seed, round_a_list
+
+logger = getLogger()
 
 
 # all_agents, all_interactions, num_steps, num_agents
@@ -36,6 +39,7 @@ class GradABM:
         self.agents_vaccine = torch.tensor(agents_df["vaccine"].to_numpy()).long().to(self.device)
         self.agents_area = torch.tensor(agents_df["area"].to_numpy()).long().to(self.device)
         self.scaling_factor_update = self.params["scaling_factor_update"]
+        self.outbreak_ctl_update = self.params["outbreak_ctl_update"]
         self.initial_infected_sa2 = self.params["initial_infected_sa2"]
 
         self.params["num_agents"] = len(agents_df)
@@ -89,13 +93,13 @@ class GradABM:
 
         # Scaling factor for outbreak ctl
         try:
-            self.outbreak_ctl_cfg = self.scaling_factor_update["outbreak_ctl"]
+            self.outbreak_ctl_cfg = self.outbreak_ctl_update["outbreak_ctl"]
         except (KeyError, TypeError):
             self.outbreak_ctl_cfg = self.params["infection_cfg"]["outbreak_ctl"]
 
         # Scaling factor perturbation for outbreak ctl
         try:
-            self.perturbation = self.scaling_factor_update["perturbation"]
+            self.perturbation = self.outbreak_ctl_update["perturbation"]
         except (KeyError, TypeError):
             self.perturbation = False
 
@@ -135,9 +139,18 @@ class GradABM:
             t=t,
             agents_mean_interactions=self.agents_mean_interactions_mu,
         )
+
+        # print(t, f"before: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
         lam_t = self.net(
-            agents_data, r0_value, lam_gamma_integrals, self.outbreak_ctl_cfg, self.perturbation
+            agents_data,
+            r0_value,
+            lam_gamma_integrals,
+            self.outbreak_ctl_cfg,
+            self.perturbation,
         )
+        # lam_t = lam_t.to("cpu")
+        # print(t, f"after: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
+
         prob_not_infected = torch.exp(-lam_t)
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
@@ -285,7 +298,7 @@ class GradABM:
                     t,
                 )
 
-        if t == 2:
+        if t == 3:
             x = 3
 
         newly_exposed_today = self.get_newly_exposed(
@@ -300,8 +313,15 @@ class GradABM:
             t,
         )
 
-        # print(t, newly_exposed_today.sum(), target)
-
+        """
+        print(
+            t,
+            f"exposed: {self.current_stages.tolist().count(1.0)}",
+            f"infected: {self.current_stages.tolist().count(2.0)}",
+            f"newly exposed: {int(newly_exposed_today.sum().item())}",
+            f"death: {int(target)}",
+        )
+        """
         # print(t, target)
         stage_records = None
         if save_records:
@@ -412,12 +432,18 @@ def build_abm(all_agents, all_interactions, infection_cfg: dict, cfg_update: Non
         "all_interactions": all_interactions,
         "infection_cfg": infection_cfg,
         "scaling_factor_update": None,
+        "outbreak_ctl_update": None,
         "initial_infected_sa2": None,
         "use_random_infection": None,
     }
 
     if cfg_update is not None:
-        for param_key in ["use_random_infection", "scaling_factor_update", "initial_infected_sa2"]:
+        for param_key in [
+            "use_random_infection",
+            "scaling_factor_update",
+            "outbreak_ctl_update",
+            "initial_infected_sa2",
+        ]:
             try:
                 params[param_key] = cfg_update[param_key]
             except KeyError:

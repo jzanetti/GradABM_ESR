@@ -1,4 +1,5 @@
 from datetime import datetime
+from gc import collect
 from logging import INFO, Formatter, StreamHandler, basicConfig, getLogger
 from os.path import join
 from time import time
@@ -7,6 +8,27 @@ from numpy import array, mean
 from yaml import safe_load as yaml_load
 
 logger = getLogger()
+
+
+from torch.cuda import (
+    current_device,
+    empty_cache,
+    get_device_properties,
+    memory_allocated,
+)
+
+
+def clear_cuda_memory(print_memory_usage: bool = False):
+    device = current_device()
+    available_memory_bytes = get_device_properties(device).total_memory - memory_allocated(device)
+    available_memory = available_memory_bytes / 1024**3
+
+    if print_memory_usage:
+        logger.info(f"available_memory: {available_memory} GB")
+
+    # collect()
+    empty_cache()
+    collect()
 
 
 def create_random_seed(factor=100000):
