@@ -59,7 +59,6 @@ def lam(
     x_j,
     edge_attr,
     t,
-    R,
     SFSusceptibility_age,
     SFSusceptibility_sex,
     SFSusceptibility_ethnicity,
@@ -114,7 +113,9 @@ def lam(
     I_bar = torch_gather(x_i[:, 7:30], 1, edge_network_numbers.view(-1, 1).long()).view(-1)
 
     if perturbation_flag:
-        R = random_uniform(R * 0.7, R * 1.3)
+        R = random_uniform(0.7, 1.3)
+    else:
+        R = 1.0
 
     res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
 
@@ -148,7 +149,6 @@ class InfectionNetwork(MessagePassing):
     def forward(
         self,
         data,
-        r0_value_trainable,
         lam_gamma_integrals,
         outbreak_ctl_cfg,
         perturbation_flag,
@@ -167,7 +167,6 @@ class InfectionNetwork(MessagePassing):
             x=x,
             edge_attr=edge_attr,
             t=t,
-            R=r0_value_trainable,
             SFSusceptibility_age=self.SFSusceptibility_age,
             SFSusceptibility_sex=self.SFSusceptibility_sex,
             SFSusceptibility_ethnicity=self.SFSusceptibility_ethnicity,
@@ -184,7 +183,6 @@ class InfectionNetwork(MessagePassing):
         x_j,
         edge_attr,
         t,
-        R,
         SFSusceptibility_age,
         SFSusceptibility_sex,
         SFSusceptibility_ethnicity,
@@ -200,7 +198,6 @@ class InfectionNetwork(MessagePassing):
             x_j,
             edge_attr,
             t,
-            R,
             SFSusceptibility_age,
             SFSusceptibility_sex,
             SFSusceptibility_ethnicity,

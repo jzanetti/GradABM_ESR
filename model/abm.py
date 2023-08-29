@@ -117,7 +117,7 @@ class GradABM:
         self.all_edgelist = all_interactions["all_edgelist"]
         self.all_edgeattr = all_interactions["all_edgeattr"]
 
-    def get_newly_exposed(self, r0_value, lam_gamma_integrals, t):
+    def get_newly_exposed(self, lam_gamma_integrals, t):
         all_nodeattr = torch.stack(
             (
                 self.agents_ages,  # 0: age
@@ -143,7 +143,6 @@ class GradABM:
         # print(t, f"before: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
         lam_t = self.net(
             agents_data,
-            r0_value,
             lam_gamma_integrals,
             self.outbreak_ctl_cfg,
             self.perturbation,
@@ -301,9 +300,7 @@ class GradABM:
         if t == 3:
             x = 3
 
-        newly_exposed_today = self.get_newly_exposed(
-            self.proc_params["r0"], self.lam_gamma_integrals, t
-        )
+        newly_exposed_today = self.get_newly_exposed(self.lam_gamma_integrals, t)
 
         recovered_dead_now, death_indices, target = self.DPM.get_target_variables(
             self.proc_params["target_sf"],

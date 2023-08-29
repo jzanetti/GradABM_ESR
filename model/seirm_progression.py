@@ -208,7 +208,8 @@ class SEIRMProgression(DiseaseProgression):
         def _randomly_assign_death_people(recovered_or_dead_today, death_total_today):
             recovered_or_dead_today_array = array(recovered_or_dead_today.tolist())
             indices_ones = where(recovered_or_dead_today_array == 1)[0]
-            n = min(int(round(death_total_today.item(), 0)), len(indices_ones))
+            n = int(max([0.0, min(int(round(death_total_today.item(), 0)), len(indices_ones))]))
+
             death_indices = choice(indices_ones, n, replace=False)
 
             return death_indices
