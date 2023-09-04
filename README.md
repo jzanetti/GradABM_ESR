@@ -22,6 +22,3 @@ Note that the data provided for the toy model is not sufficient to do any meanin
 
 
 Contact: sijin.zhang@esr.cri.nz
-
-# 153500 (many m/p) or 159300 (many eu/asia) or 165400 (many eu): many cases
-# 147200: less cases
