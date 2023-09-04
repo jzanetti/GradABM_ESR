@@ -97,7 +97,7 @@ train:
   # Section 1.4: Learnable parmaters via NN
   # -------------------------------------------
   learnable_params:
-    target_sf:
+    vaccine_efficiency:
       enable: true
       min: 0.1
       max: 15.0

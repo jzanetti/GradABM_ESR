@@ -297,19 +297,39 @@ class GradABM:
                     t,
                 )
 
-        if t == 3:
-            x = 3
+        # if t == 3:
+        #    x = 3
 
         newly_exposed_today = self.get_newly_exposed(self.lam_gamma_integrals, t)
 
         recovered_dead_now, death_indices, target = self.DPM.get_target_variables(
-            self.proc_params["target_sf"],
+            self.proc_params["vaccine_efficiency"],
             self.current_stages,
             self.agents_next_stage_times,
             self.proc_params["infected_to_recovered_or_death_time"],
             t,
         )
 
+        """
+        if 165400 in self.agents_area[death_indices]:
+            import numpy
+
+            agent_loc = numpy.where(
+                numpy.array(self.agents_area[death_indices].tolist()) == 165400
+            )[0][0]
+            print(
+                self.agents_ethnicity[death_indices[agent_loc]],
+                self.agents_ages[death_indices[agent_loc]],
+            )
+
+        print(
+            t,
+            "165400: ",
+            165400 in self.agents_area[death_indices],
+            "147200: ",
+            147200 in self.agents_area[death_indices],
+        )
+        """
         """
         print(
             t,

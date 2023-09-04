@@ -20,7 +20,7 @@ input_data = {
 
 model_cfg_path = "data/measles/policy_paper/base/gradam_exp_vac1.yml"
 exp_name = "base_exp"
-run_input_main = False
+run_input_main = True
 run_model_main = True
 run_predict_main = True
 

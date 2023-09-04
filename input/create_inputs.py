@@ -70,7 +70,7 @@ def read_june_nz_inputs(june_nz_data) -> DataFrame:
         data = concat(data, ignore_index=True)
     data = data.drop_duplicates()
 
-    return data.drop_duplicates()
+    return data
 
 
 def convert_to_age_index(age):
@@ -83,6 +83,9 @@ def convert_to_age_index(age):
 def get_agents(data, sa2, data_dir, vaccine_ratio, plot_agents=False):
     def _assign_vaccination(ethnicity):
         return 1 if numpy_random() < vaccine_ratio[ethnicity] else 0
+
+    if sa2 is not None:
+        data = data[data["area"].isin(sa2)]
 
     agents = data[["id", "age", "sex", "ethnicity", "area"]].drop_duplicates()
     print(f"Total population {len(agents)}")

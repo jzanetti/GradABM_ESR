@@ -198,7 +198,7 @@ class SEIRMProgression(DiseaseProgression):
 
     def get_target_variables(
         self,
-        target_sf,
+        vaccine_efficiency,
         current_stages,
         agents_next_stage_times,
         infected_to_recovered_or_death_time,
@@ -225,7 +225,7 @@ class SEIRMProgression(DiseaseProgression):
 
         recovered_or_dead_today = (current_stages * after_infected_index) / STAGE_INDEX["infected"]
 
-        death_total_today = (target_sf / 100.0) * torch_sum(recovered_or_dead_today)
+        death_total_today = (vaccine_efficiency / 100.0) * torch_sum(recovered_or_dead_today)
 
         death_indices = _randomly_assign_death_people(recovered_or_dead_today, death_total_today)
 

@@ -246,8 +246,6 @@ def plot_diags(
 
                 sa2.loc[sa2["agents_occurrences"] == 0.0, "agents_occurrences"] = NaN
 
-                # sa2 = GeoDataFrame(sa2, geometry=GeoSeries.from_wkt(sa2["WKT"]))
-
                 if vis_cfg["agents_map"]["pop_based_interpolation"]["enable"]:
                     sa2["representative_point"] = sa2.representative_point()
                     if "population" not in sa2.columns:
@@ -290,7 +288,7 @@ def plot_diags(
                     ax=ax,
                     legend_kwds={"shrink": 0.3},
                     vmin=0,
-                    vmax=int(output["pred"].sum().item() * 1.0),
+                    vmax=int(output["pred"].sum().item() * 0.05),
                 )
                 sa2.boundary.plot(linewidth=0.3, color="k", linestyle="solid", ax=ax)
                 ax.set_xlim(
