@@ -79,6 +79,14 @@ def lam(
     *self.agents_mean_interactions_mu_split,  # 7 to 29: represents the number of venues where agents can interact with each other
     torch.arange(self.params["num_agents"]).to(self.device),  # Agent ids (30)
     """
+
+    # --------------------------------------------------
+    # Step 1:
+    # This section calculates S_A_s, which appears
+    # to represent a susceptibility factor for each edge.
+    # It seems to depend on the age, sex, ethnicity,
+    # and vaccination status of the source node x_i.
+    # --------------------------------------------------
     S_A_s = (
         SFSusceptibility_age[x_i[:, 0].long()]
         * SFSusceptibility_sex[x_i[:, 1].long()]
@@ -86,9 +94,11 @@ def lam(
         * SFSusceptibility_vaccine[x_i[:, 3].long()]
     )  # age * sex * ethnicity dependant * vaccine
 
-    if t in [2, 3]:
-        x = 3
-
+    # --------------------------------------------------
+    # Step 2:
+    # A_s_i is calculated based on the stage (x_j[:, 4]) of the target node x_j.
+    #  It seems to represent an infectivity factor related to the stage.
+    # --------------------------------------------------
     A_s_i = SFInfector[x_j[:, 4].long()]  # stage dependant
 
     B_n = edge_attr[1, :]

@@ -252,7 +252,6 @@ class GradABM:
                     self.proc_params[proc_param] = param_t
             else:
                 self.proc_params[proc_param] = param_info["learnable_param_default"][proc_param]
-        # return self.all_params
 
     def cal_lam_gamma_integrals(
         self, shape, scale, infection_gamma_scaling_factor, max_infectiousness_timesteps=3
@@ -296,9 +295,6 @@ class GradABM:
                     self.proc_params["infected_to_recovered_or_death_time"],
                     t,
                 )
-
-        # if t == 3:
-        #    x = 3
 
         newly_exposed_today = self.get_newly_exposed(self.lam_gamma_integrals, t)
 
