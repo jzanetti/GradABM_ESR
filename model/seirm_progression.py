@@ -2,9 +2,11 @@ import torch.nn.functional as F
 from numpy import arange as numpy_arange
 from numpy import array
 from numpy import array as numpy_array
+from numpy import isin as numpy_isin
 from numpy import isnan
 from numpy import sum as numpy_sum
 from numpy import where
+from numpy import where as numpy_where
 from numpy.random import choice
 from numpy.random import choice as numpy_choice
 from numpy.random import random as numpy_random
@@ -22,6 +24,7 @@ from torch import ones_like as torch_ones_like
 from torch import sum as torch_sum
 from torch import tensor as torch_tensor
 from torch import where as torch_where
+from torch import zeros as torch_zeros
 from torch import zeros_like as torch_zeros_like
 
 from model import SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
@@ -84,39 +87,29 @@ class SEIRMProgression(DiseaseProgression):
     def init_infected_agents(
         self,
         initial_infected_percentage,
-        agents_area,
-        initial_infected_sa2,
+        initial_infected_ids,
+        agents_id,
         device,
     ):
-        prob_infected = (initial_infected_percentage / 100) * torch_ones((self.num_agents, 1)).to(
-            device
-        )
+        if initial_infected_ids is not None:
+            agents_stages = torch_zeros((self.num_agents))
+            all_agents_ids = array(agents_id.tolist())
+            indices = numpy_where(numpy_isin(all_agents_ids, initial_infected_ids))[0]
+            agents_stages[indices] = STAGE_INDEX["infected"]
 
-        if initial_infected_sa2 is not None:
-            initial_infected_sa2_tensor = torch_tensor(initial_infected_sa2, device="cuda:0")
-            initial_infected_sa2_mask = torch_zeros_like(
-                agents_area, dtype=torch_float32, device="cuda:0"
-            )
+        else:
+            prob_infected = (initial_infected_percentage / 100) * torch_ones(
+                (self.num_agents, 1)
+            ).to(device)
+            p = torch_hstack((prob_infected, 1 - prob_infected))
+            cat_logits = torch_log(p + 1e-9)
+            if TORCH_SEED_NUM is not None:
+                torch_seed(TORCH_SEED_NUM["initial_infected"])
 
-            for value in initial_infected_sa2_tensor:
-                initial_infected_sa2_mask = initial_infected_sa2_mask + (agents_area == value)
+            agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
+            agents_stages *= STAGE_INDEX["infected"]
 
-            initial_infected_sa2_mask = (initial_infected_sa2_mask > 0).to(torch_float32)
-
-            prob_infected *= initial_infected_sa2_mask.unsqueeze(1)
-
-            prob_infected[prob_infected > 0] = 1.0
-
-        p = torch_hstack((prob_infected, 1 - prob_infected))
-        cat_logits = torch_log(p + 1e-9)
-        if TORCH_SEED_NUM is not None:
-            torch_seed(TORCH_SEED_NUM["initial_infected"])
-
-        agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
-        agents_stages *= STAGE_INDEX["infected"]
-        agents_stages = agents_stages.to(device)
-
-        return agents_stages
+        return agents_stages.to(device)
 
     def init_infected_time(self, agents_stages, device):
         agents_infected_time = -1 * torch_ones_like(agents_stages).to(device)

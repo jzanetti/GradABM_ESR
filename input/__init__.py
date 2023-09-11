@@ -16,6 +16,6 @@ ETHNICITY_INDEX = {"European": 0, "Maori": 1, "Pacific": 2, "Asian": 3, "MELAA":
 
 SEX_INDEX = {"m": 0, "f": 1}
 
-TRAINING_ENS_MEMBERS = 10
+TRAINING_ENS_MEMBERS = 1
 
-RANDOM_ENSEMBLES = 10
+RANDOM_ENSEMBLES = 2

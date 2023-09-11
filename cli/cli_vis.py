@@ -1,9 +1,8 @@
 """
-Usage: cli_predict --workdir  /tmp/gradabm_esr_pred
-                   --param_path /tmp/gradabm_esr/test1/params.p
-                   --output_info_path /tmp/gradabm_esr/test1/output_info.p
-                   --param_model_path /tmp/gradabm_esr/test1/param_model.model
-                   --abm_model_path /tmp/gradabm_esr/test1/abm_model.model
+Usage: cli_predict --prd_dir  /tmp/gradabm_esr_pred
+                   --cfg /tmp/vis.cfg
+                   --exp_name base_exp
+
 Author: Sijin Zhang
 Contact: sijin.zhang@esr.cri.nz
 
@@ -52,6 +51,7 @@ def setup_parser():
         required=True,
         help="Experiment name",
     )
+    """
     return parser.parse_args(
         [
             "--prd_dir",
@@ -62,6 +62,8 @@ def setup_parser():
             "base_exp",
         ]
     )
+    """
+    return parser.parse_args()
 
 
 def main(prd_dir, cfg, exp_name):

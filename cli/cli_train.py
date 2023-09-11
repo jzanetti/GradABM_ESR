@@ -49,6 +49,7 @@ def setup_parser():
     parser.add_argument("--interaction_data", required=True, help="Interaction data in parquet")
     parser.add_argument("--target_data", required=True, help="Target data in CSV")
 
+    """
     return parser.parse_args(
         [
             "--exp",
@@ -67,6 +68,9 @@ def setup_parser():
             "data/measles/auckland/inputs/output.csv",
         ]
     )
+    """
+
+    return parser.parse_args()
 
 
 def main(workdir, exp, cfg, agents_data, interaction_data, target_data):

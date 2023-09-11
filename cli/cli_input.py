@@ -64,6 +64,8 @@ def setup_parser():
     parser.add_argument(
         "--dhb_list", nargs="+", help="DHB list to be used", required=False, default=None
     )
+
+    """
     return parser.parse_args(
         [
             "--june_nz_data",
@@ -83,6 +85,8 @@ def setup_parser():
             "data/measles_cases_2019.parquet",
         ]
     )
+    """
+    return parser.parse_args()
 
 
 def main(

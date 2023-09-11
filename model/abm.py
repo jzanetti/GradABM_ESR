@@ -40,7 +40,7 @@ class GradABM:
         self.agents_area = torch.tensor(agents_df["area"].to_numpy()).long().to(self.device)
         self.scaling_factor_update = self.params["scaling_factor_update"]
         self.outbreak_ctl_update = self.params["outbreak_ctl_update"]
-        self.initial_infected_sa2 = self.params["initial_infected_sa2"]
+        self.initial_infected_ids = self.params["initial_infected_ids"]
 
         self.params["num_agents"] = len(agents_df)
         self.num_agents = self.params["num_agents"]
@@ -189,15 +189,16 @@ class GradABM:
         )
 
     def init_infected_tensors(
-        self, initial_infected_percentage, infected_to_recovered_or_dead_time, agents_area
+        self,
+        initial_infected_percentage,
+        infected_to_recovered_or_dead_time,
     ):
         self.current_stages = self.DPM.init_infected_agents(
             initial_infected_percentage,
-            agents_area,
-            self.initial_infected_sa2,
+            self.initial_infected_ids,
+            self.agents_id,
             self.device,
         )
-
         self.agents_next_stage_times = self.DPM.init_agents_next_stage_time(
             self.current_stages,
             infected_to_recovered_or_dead_time,
@@ -277,7 +278,6 @@ class GradABM:
             self.init_infected_tensors(
                 self.proc_params["initial_infected_percentage"],
                 self.proc_params["infected_to_recovered_or_death_time"],
-                self.agents_area,
             )
             self.cal_lam_gamma_integrals(
                 self.proc_params["infection_gamma_shape"],
@@ -296,6 +296,8 @@ class GradABM:
                     t,
                 )
 
+        if t == 0:
+            x = 3
         newly_exposed_today = self.get_newly_exposed(self.lam_gamma_integrals, t)
 
         recovered_dead_now, death_indices, target = self.DPM.get_target_variables(
@@ -326,7 +328,7 @@ class GradABM:
             147200 in self.agents_area[death_indices],
         )
         """
-        """
+
         print(
             t,
             f"exposed: {self.current_stages.tolist().count(1.0)}",
@@ -334,7 +336,7 @@ class GradABM:
             f"newly exposed: {int(newly_exposed_today.sum().item())}",
             f"death: {int(target)}",
         )
-        """
+
         # print(t, target)
         stage_records = None
         if save_records:
@@ -446,7 +448,7 @@ def build_abm(all_agents, all_interactions, infection_cfg: dict, cfg_update: Non
         "infection_cfg": infection_cfg,
         "scaling_factor_update": None,
         "outbreak_ctl_update": None,
-        "initial_infected_sa2": None,
+        "initial_infected_ids": None,
         "use_random_infection": None,
     }
 
@@ -455,7 +457,7 @@ def build_abm(all_agents, all_interactions, infection_cfg: dict, cfg_update: Non
             "use_random_infection",
             "scaling_factor_update",
             "outbreak_ctl_update",
-            "initial_infected_sa2",
+            "initial_infected_ids",
         ]:
             try:
                 params[param_key] = cfg_update[param_key]

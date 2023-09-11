@@ -15,7 +15,7 @@ vis:
       title_str: "JUNE-NZ validation, Manukau DHB"
       # "Number of cases (origin: 147900)"
     agents_map:
-      enable: true
+      enable: false
       individuals: false
       sa2_path: /home/zhangs/Github/JUNE_NZ_data/geography/statistical-area-2-2018-generalised.csv
       pop_based_interpolation:

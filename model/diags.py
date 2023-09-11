@@ -124,8 +124,6 @@ def plot_diags(
     for i, output in enumerate(outputs):
         my_pred = output["pred"].tolist()
 
-        # sf = _apply_scaling_func(my_pred, apply_scaling)
-
         # ----------------------------
         # Plot agents
         # ----------------------------

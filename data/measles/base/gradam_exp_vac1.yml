@@ -158,9 +158,11 @@ predict:
       name: null
   base_exp:
     # temporal_res: week
-    initial_infected_sa2: null
-    # - 147900
-    use_random_infection: true
+    initial_infected_ids:
+      - 1066513
+      - 1066520
+      - 1066527
+    use_random_infection: false
     scaling_factor_update:
       vaccine:
         - 1.0 # 0: not vaccined (e.g., 1.0)
@@ -169,8 +171,8 @@ predict:
       perturbation: false
       outbreak_ctl:
         isolation: # for infected cases
-          compliance_rate: 0.7 # float (e.g., 0.9) or None
-          isolation_sf: 0.5 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
+          compliance_rate: null # float (e.g., 0.7) or None (default: 0.7)
+          isolation_sf: null # when we set it to 0.0, isolated case will be completely exlcuded from interactions (default: 0.5)
         quarantine: # for exposed cases
           contact_tracing_coverage: 0.5
           compliance_rate: 0.5

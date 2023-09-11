@@ -91,6 +91,7 @@ def setup_parser():
         "the same model can produce differnet ensembles, this ID is used to identify different ens runs",
     )
 
+    """
     return parser.parse_args(
         [
             "--workdir",
@@ -107,6 +108,8 @@ def setup_parser():
             "0",
         ]
     )
+    """
+    return parser.parse_args()
 
 
 def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
