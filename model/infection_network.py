@@ -6,17 +6,23 @@ from torch import manual_seed as torch_seed
 from torch import nonzero as torch_nonzero
 from torch import ones_like as torch_ones_like
 from torch import randperm as torch_randperm
+from torch import tensor as torch_tensor
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
-from model import TORCH_SEED_NUM
+from model import DEVICE, TORCH_SEED_NUM
 from utils.utils import create_random_seed
 
 logger = getLogger()
 
 
 def infected_case_isolation(
-    infected_idx, isolation_compliance_rate, isolation_intensity, t, min_cases: int = 10
+    infected_idx,
+    contact_tracing_coverage,
+    isolation_compliance_rate,
+    isolation_intensity,
+    t,
+    min_cases: int = 10,
 ):
     """Create infected case isolation scaling factor
 
@@ -26,7 +32,7 @@ def infected_case_isolation(
     Returns:
         _type_: Scaling factor for infected case
     """
-    if (isolation_compliance_rate) is None or (t == 0):
+    if (isolation_compliance_rate is None) or (contact_tracing_coverage is None) or (t == 0):
         return torch_ones_like(infected_idx)
 
     # infected agents (0.0: uninfected; 1.0: infected)
@@ -40,7 +46,8 @@ def infected_case_isolation(
     if infected_agents_length < min_cases:
         return torch_ones_like(infected_agents)
 
-    isolated_agents_length = int(isolation_compliance_rate * len(infected_agents_index))
+    identified_infected_agents_length = infected_agents_length * contact_tracing_coverage
+    isolated_agents_length = int(isolation_compliance_rate * identified_infected_agents_length)
 
     if TORCH_SEED_NUM is not None:
         torch_seed(TORCH_SEED_NUM["isolation_policy"])
@@ -59,6 +66,8 @@ def lam(
     x_j,
     edge_attr,
     t,
+    vaccine_efficiency_spread,
+    contact_tracing_coverage,
     SFSusceptibility_age,
     SFSusceptibility_sex,
     SFSusceptibility_ethnicity,
@@ -87,6 +96,9 @@ def lam(
     # It seems to depend on the age, sex, ethnicity,
     # and vaccination status of the source node x_i.
     # --------------------------------------------------
+    SFSusceptibility_vaccine = torch_tensor([1.0, vaccine_efficiency_spread]).to(
+        DEVICE
+    )  # my_tensor = torch.tensor(my_list)
     S_A_s = (
         SFSusceptibility_age[x_i[:, 0].long()]
         * SFSusceptibility_sex[x_i[:, 1].long()]
@@ -104,14 +116,21 @@ def lam(
     B_n = edge_attr[1, :]
     integrals = torch_zeros_like(B_n)
     # infected_idx = x_j[:, 5].bool()
+    # infected_idx = x_j[:, 4].long() == 4.0
+    # infected_idx_length = infected_idx.tolist().count(True)
+    # if infected_idx_length == 0:
     infected_idx = x_j[:, 4].long() == 2.0
+
     infected_times = t - x_j[infected_idx, 6]
+    # infected_idx2 = x_j[:, 4].long() == 4.0
+    # print(infected_idx.tolist().count(True), infected_idx2.tolist().count(True))
 
     integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
 
     # Isolate infected cases
     isolated_sf = infected_case_isolation(
         infected_idx,
+        contact_tracing_coverage,
         outbreak_ctl_cfg["isolation"]["compliance_rate"],
         outbreak_ctl_cfg["isolation"]["isolation_sf"],
         t,
@@ -168,6 +187,8 @@ class InfectionNetwork(MessagePassing):
         edge_index = data.edge_index
         edge_attr = data.edge_attr
         t = data.t
+        vaccine_efficiency_spread = data.vaccine_efficiency_spread
+        contact_tracing_coverage = data.contact_tracing_coverage
 
         if vis_debug:
             self.vis_debug_graph(edge_index)
@@ -177,6 +198,8 @@ class InfectionNetwork(MessagePassing):
             x=x,
             edge_attr=edge_attr,
             t=t,
+            vaccine_efficiency_spread=vaccine_efficiency_spread,
+            contact_tracing_coverage=contact_tracing_coverage,
             SFSusceptibility_age=self.SFSusceptibility_age,
             SFSusceptibility_sex=self.SFSusceptibility_sex,
             SFSusceptibility_ethnicity=self.SFSusceptibility_ethnicity,
@@ -193,6 +216,8 @@ class InfectionNetwork(MessagePassing):
         x_j,
         edge_attr,
         t,
+        vaccine_efficiency_spread,
+        contact_tracing_coverage,
         SFSusceptibility_age,
         SFSusceptibility_sex,
         SFSusceptibility_ethnicity,
@@ -208,6 +233,8 @@ class InfectionNetwork(MessagePassing):
             x_j,
             edge_attr,
             t,
+            vaccine_efficiency_spread,
+            contact_tracing_coverage,
             SFSusceptibility_age,
             SFSusceptibility_sex,
             SFSusceptibility_ethnicity,

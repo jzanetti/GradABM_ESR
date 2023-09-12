@@ -114,7 +114,14 @@ def select_rows_by_spec(df, spec_value, percentage):
     return selected_rows
 
 
-def get_interactions(data, agents, sa2, data_dir, interaction_ratio_cfg):
+def get_interactions(
+    data,
+    agents,
+    sa2,
+    data_dir,
+    interaction_ratio_cfg,
+    max_interaction_for_each_venue: int or None = None,
+):
     if sa2 is not None:
         data = data[data["area"].isin(sa2)]
 
@@ -134,7 +141,16 @@ def get_interactions(data, agents, sa2, data_dir, interaction_ratio_cfg):
             )
 
         logger.info(f"   Combining all interaction inputs ...")
-        sampled_df = concat(sampled_df, ignore_index=True)
+        sampled_df = concat(sampled_df, ignore_index=True).drop_duplicates()
+
+        if max_interaction_for_each_venue is not None:
+            logger.info(f"   Limiting interactions to {max_interaction_for_each_venue} ...")
+            sampled_df = sampled_df.groupby("group", group_keys=False).apply(
+                lambda x: x.sample(min(len(x), max_interaction_for_each_venue), random_state=1)
+            )
+
+        # print(sampled_df_filtered)
+        # raise Exception("!2312")
 
         logger.info("   Start interaction merging process ...")
         interactions = pandas_merge(sampled_df, sampled_df, on="group")

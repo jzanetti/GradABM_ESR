@@ -5,7 +5,9 @@ from torch import device as torch_device
 # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "500"
 
 ALL_PARAMS = [
-    "vaccine_efficiency",
+    "vaccine_efficiency_spread",
+    "vaccine_efficiency_symptom",
+    "contact_tracing_coverage",
     "initial_infected_percentage",
     "random_infected_percentgae",
     "exposed_to_infected_time",

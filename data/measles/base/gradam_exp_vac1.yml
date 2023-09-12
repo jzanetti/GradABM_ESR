@@ -13,7 +13,7 @@ train:
         enable: true
         step: 15
         reduction_ratio: 0.9
-    num_epochs: 30
+    num_epochs: 50
     clip_grad_norm: 10.0
 
   # -------------------------------------------
@@ -50,10 +50,10 @@ train:
     outbreak_ctl:
       isolation: # for infected cases
         compliance_rate: 0.7 # float (e.g., 0.9) or None
-        isolation_sf: 0.5 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
-      quarantine: # for exposed cases
-        contact_tracing_coverage: 0.5
-        compliance_rate: 0.5
+        isolation_sf: 0.01 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
+      # quarantine: # for exposed cases
+      # contact_tracing_coverage: 0.5
+      #  compliance_rate: 0.5
       exclusion: # for exposed cases
         high_risk_settings:
           - school
@@ -66,8 +66,8 @@ train:
   # -------------------------------------------
   interaction:
     school:
-      mu: 4  # the number of interactions for each venue each day
-      bn: 2.0 # the intensity of interaction at each venue
+      mu: 4  # the number of interactions for each venue each day (the higher number, the less interaction intensity)
+      bn: 0.5 # the intensity of interaction at each venue
     household:
       mu: 4
       bn: 2.0
@@ -97,21 +97,31 @@ train:
   # Section 1.4: Learnable parmaters via NN
   # -------------------------------------------
   learnable_params:
-    vaccine_efficiency:
+    vaccine_efficiency_spread:
       enable: true
-      min: 0.1
-      max: 15.0
-      default: 3.0 # 3.0
+      min: 0.003 # 0.3
+      max: 0.01 # 0.8
+      default: 0.005 # 0.6
+    vaccine_efficiency_symptom:
+      enable: true
+      min: 0.05 # 0.01
+      max: 0.15 # 0.15
+      default: 0.1 # 0.03
+    contact_tracing_coverage:
+      enable: true
+      min: 0.3
+      max: 0.7
+      default: 0.5
     initial_infected_percentage:
       enable: true
       min: 0.01
       max: 0.002
       default: 0.001
     random_infected_percentgae:
-      enable: true
+      enable: true 
       min: 0.01
       max: 0.15
-      default: 0.06 # 0.5
+      default: 0.06 # 0.06
     exposed_to_infected_time:
       enable: false
       min: 0.1
@@ -134,9 +144,9 @@ train:
       default: 10.0
     infection_gamma_scaling_factor: # decide how fast the disease spread
       enable: true
-      min: 0.01
-      max: 0.5
-      default: 0.25
+      min: 0.005
+      max: 0.2
+      default: 0.05
   
   # -------------------------------------------
   # Section 1.4: Learnable parmaters via NN
@@ -158,24 +168,24 @@ predict:
       name: null
   base_exp:
     # temporal_res: week
-    initial_infected_ids:
-      - 1066513
-      - 1066520
-      - 1066527
-    use_random_infection: false
+    initial_infected_ids: null
+    #  - 1066513
+    #  - 1066520
+    #  - 1066527
+    use_random_infection: true
     scaling_factor_update:
-      vaccine:
-        - 1.0 # 0: not vaccined (e.g., 1.0)
-        - 0.5 # 1: vaccined (e.g., 0.0001)
+      # vaccine:
+      #  - 1.0 # 0: not vaccined (e.g., 1.0)
+      #  - 0.5 # 1: vaccined (e.g., 0.0001)
     outbreak_ctl_update:
       perturbation: false
       outbreak_ctl:
         isolation: # for infected cases
           compliance_rate: null # float (e.g., 0.7) or None (default: 0.7)
           isolation_sf: null # when we set it to 0.0, isolated case will be completely exlcuded from interactions (default: 0.5)
-        quarantine: # for exposed cases
-          contact_tracing_coverage: 0.5
-          compliance_rate: 0.5
+        # quarantine: # for exposed cases
+        #  contact_tracing_coverage: 0.5
+        #  compliance_rate: 0.5
         exclusion: # for exposed cases
           high_risk_settings:
             - school

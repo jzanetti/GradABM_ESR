@@ -75,6 +75,7 @@ def save_outputs(param_model, workdir):
     torch_save(param_model["param_model"], join(workdir, "param_model.model"))
     pickle_dump(param_model["params"], open(join(workdir, "params.p"), "wb"))
     pickle_dump(param_model["output_info"], open(join(workdir, "output_info.p"), "wb"))
+    pickle_dump(param_model["all_interactions"], open(join(workdir, "all_interactions.p"), "wb"))
     # pickle_dump(param_model["agents"], open(join(workdir, "output_agents.p"), "wb"))
 
 

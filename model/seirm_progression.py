@@ -191,7 +191,7 @@ class SEIRMProgression(DiseaseProgression):
 
     def get_target_variables(
         self,
-        vaccine_efficiency,
+        vaccine_efficiency_symptom,
         current_stages,
         agents_next_stage_times,
         infected_to_recovered_or_death_time,
@@ -218,7 +218,7 @@ class SEIRMProgression(DiseaseProgression):
 
         recovered_or_dead_today = (current_stages * after_infected_index) / STAGE_INDEX["infected"]
 
-        death_total_today = (vaccine_efficiency / 100.0) * torch_sum(recovered_or_dead_today)
+        death_total_today = vaccine_efficiency_symptom * torch_sum(recovered_or_dead_today)
 
         death_indices = _randomly_assign_death_people(recovered_or_dead_today, death_total_today)
 
@@ -257,15 +257,6 @@ class SEIRMProgression(DiseaseProgression):
             "recovered_or_death"
         ] * (t == agents_next_stage_times)
 
-        """
-        after_exposed = STAGE_INDEX["exposed"] * (t < agents_next_stage_times) + STAGE_INDEX[
-            "infected"
-        ] * ((t >= agents_next_stage_times) & (t < agents_next_stage_times_max))
-
-        after_infected = STAGE_INDEX["infected"] * (t < agents_next_stage_times) + STAGE_INDEX[
-            "recovered_or_death"
-        ] * ((t >= agents_next_stage_times) & (t < agents_next_stage_times_max))
-        """
         after_infected[death_indices] = STAGE_INDEX["death"]
 
         stage_progression = (
@@ -277,5 +268,5 @@ class SEIRMProgression(DiseaseProgression):
         )
 
         current_stages = newly_exposed_today * STAGE_INDEX["exposed"] + stage_progression
-
+        # print(after_infected.tolist().count(4.0))
         return current_stages

@@ -1,24 +1,11 @@
-This is the implementation of the differentiable ABM at ESR.
+This is the implementation of the differentiable ABM at ESR, this is part of the ``JUNE-NZ`` public health modelling framework at ESR. 
 
-The algorithm is described [here](https://arxiv.org/abs/2207.09714). Codes in this repository are adapted from [here](https://github.com/AdityaLab/GradABM).
+Agent Based Models (ABMs) have emerged as a powerful tool for investigating complex social interactions, particularly in the context of public health and infectious disease investigation. In this paper, we developed a tensorized and differentiable agent-based model that seamlessly integrates into the Pytorch machine learning framework (known as JUNE-NZ). This integration allows us to harness the power of modern GPU units and enable the real-time and fully automatic parameter calibration by calculating the gradient of the loss function with respect to the weights of neural network through backpropagation. 
 
-The codes here are only used to demostrate the usefulness of learnable parameters in an ABM via graph neural network. More applications
-can be developed by extending this simple model.
+The model was employed to investigate the 2019 measles outbreak occurred in New Zealand, and a good skill is shown for simulating the outbreak’s peak accurately. Moreover, we extensively explored various policy interventions within the model and thoroughly examined their potential impacts.
 
-This simple model contains _10_ agents, they are all living and interacting within the same household. 
-Agents are defined in ``data/agents.csv`` (_Note that there are 10 age groups representing ages: 0-10, 11-20, ..., 80+_).
-Their interaction links are defined in ``data/interaction_graph_cfg.csv``. At the begining, all the agents are not infected, while 
+The model setup is described below:
 
-
-The learnable parameters include:
-
-- r (The scale factor for the overal infection rate)
-- mortality_rate
-- initial_infections_percentage
-- exposed_to_infected_time
-- infected_to_recovered_or_death_time
-
-Note that the data provided for the toy model is not sufficient to do any meaningful tunning.
-
+<img src="etc/gradabm_illustration.PNG" alt="GradABM" width="50%" height="50%">
 
 Contact: sijin.zhang@esr.cri.nz

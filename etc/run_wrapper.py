@@ -1,11 +1,13 @@
 from os.path import join
+from shutil import rmtree
 
 from cli.cli_input import main as input_main
 from cli.cli_predict import main as predict_main
 from cli.cli_train import main as train_main
+from cli.cli_vis import main as vis_main
 from input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 
-workdir = "exp/policy_paper2"
+workdir = "exp/policy_paper"
 
 input_data = {
     "june_nz_data": "data/measles/june_output",
@@ -16,11 +18,18 @@ input_data = {
 }
 
 model_cfg_path = "data/measles/base/gradam_exp_vac1.yml"
+vis_cfg_path = "data/measles/base/vis_exp_vac1.yml"
 prd_job_name = "base_exp"
+
 run_input_main = True
 run_model_main = True
 run_predict_main = True
+run_vis_main = True
+remove_all_old_runs = True
 
+
+if remove_all_old_runs:
+    rmtree(workdir)
 
 if run_input_main:
     print(f"Creating input data ...")
@@ -58,3 +67,7 @@ if run_predict_main:
                 proc_member,
                 ens_id,
             )
+
+if run_vis_main:
+    print("Run vis ...")
+    vis_main(join(workdir, "predict"), vis_cfg_path, prd_job_name)

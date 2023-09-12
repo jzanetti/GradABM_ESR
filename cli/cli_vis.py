@@ -1,5 +1,6 @@
 """
 Usage: cli_predict --prd_dir  /tmp/gradabm_esr_pred
+                   --trn_dir /tmp/train_output
                    --cfg /tmp/vis.cfg
                    --exp_name base_exp
 
@@ -12,6 +13,7 @@ Description:
 
 import argparse
 from os.path import join
+from pickle import load as pickle_load
 
 from input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 from model.diags import plot_diags
@@ -51,24 +53,22 @@ def setup_parser():
         required=True,
         help="Experiment name",
     )
-    """
+
     return parser.parse_args(
         [
             "--prd_dir",
             "exp/policy_paper/predict",
             "--cfg",
-            "data/measles/policy_paper/base/vis_exp_vac1.yml",
+            "data/measles/base/vis_exp_vac1.yml",
             "--exp_name",
             "base_exp",
         ]
     )
-    """
+
     return parser.parse_args()
 
 
 def main(prd_dir, cfg, exp_name):
-    from pickle import load as pickle_load
-
     cfg = read_cfg(cfg, key="vis")
     outputs = []
     epoch_losses = []
@@ -79,7 +79,6 @@ def main(prd_dir, cfg, exp_name):
                 open(join(prd_dir, exp_name, "output", f"pred_{model_id}_{ens_id}.p"), "rb")
             )
             outputs.append(proc_prd["output"])
-
             epoch_losses.append(proc_prd["epoch_loss_list"])
 
     plot_diags(

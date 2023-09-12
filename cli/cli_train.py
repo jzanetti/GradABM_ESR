@@ -153,6 +153,7 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
                 "epoch_loss_list": epoch_loss_list,
                 "param_values_list": param_values_list,
             },
+            "all_interactions": model_inputs["all_interactions"],
             "params": {"param_with_smallest_loss": param_with_smallest_loss},
             "param_model": param_model,
         },

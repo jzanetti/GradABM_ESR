@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import Counter
 from copy import copy as shallow_copy
 from logging import getLogger
 
@@ -55,8 +56,8 @@ class GradABM:
         self.agents_mean_interactions_mu_split = all_interactions[
             "agents_mean_interactions_mu_split"
         ]
-        self.network_type_dict_inv = all_interactions["network_type_dict_inv"]
-        self.network_type_dict = all_interactions["network_type_dict"]
+        # self.network_type_dict_inv = all_interactions["network_type_dict_inv"]
+        # self.network_type_dict = all_interactions["network_type_dict"]
 
         self.DPM = SEIRMProgression(self.params)
 
@@ -117,7 +118,13 @@ class GradABM:
         self.all_edgelist = all_interactions["all_edgelist"]
         self.all_edgeattr = all_interactions["all_edgeattr"]
 
-    def get_newly_exposed(self, lam_gamma_integrals, t):
+    def get_newly_exposed(
+        self,
+        lam_gamma_integrals,
+        vaccine_efficiency_spread,
+        contact_tracing_coverage,
+        t,
+    ):
         all_nodeattr = torch.stack(
             (
                 self.agents_ages,  # 0: age
@@ -136,6 +143,8 @@ class GradABM:
             all_nodeattr,
             edge_index=self.all_edgelist,
             edge_attr=self.all_edgeattr,
+            vaccine_efficiency_spread=vaccine_efficiency_spread,
+            contact_tracing_coverage=contact_tracing_coverage,
             t=t,
             agents_mean_interactions=self.agents_mean_interactions_mu,
         )
@@ -154,6 +163,11 @@ class GradABM:
         p = torch.hstack((1 - prob_not_infected, prob_not_infected))
         cat_logits = torch.log(p + 1e-9)
 
+        infection_distribution_percentage = None
+        # infection_distribution_percentage = {
+        #    value: count / len(lam_t[:, 0].tolist()) * 100
+        #    for value, count in Counter(lam_t[:, 0].tolist()).items()
+        # }
         while True:
             if TORCH_SEED_NUM is not None:
                 # torch_seed(create_random_seed())
@@ -169,8 +183,8 @@ class GradABM:
         newly_exposed_today = self.DPM.get_newly_exposed(
             self.current_stages, potentially_exposed_today
         )
-
-        return newly_exposed_today
+        # newly_exposed_today = potentially_exposed_today
+        return newly_exposed_today, potentially_exposed_today, infection_distribution_percentage
 
     def create_random_infected_tensors(
         self,
@@ -296,12 +310,19 @@ class GradABM:
                     t,
                 )
 
-        if t == 0:
-            x = 3
-        newly_exposed_today = self.get_newly_exposed(self.lam_gamma_integrals, t)
+        (
+            newly_exposed_today,
+            potentially_exposed_today,
+            infection_ratio_distribution_percentage,
+        ) = self.get_newly_exposed(
+            self.lam_gamma_integrals,
+            self.proc_params["vaccine_efficiency_spread"],
+            self.proc_params["contact_tracing_coverage"],
+            t,
+        )
 
         recovered_dead_now, death_indices, target = self.DPM.get_target_variables(
-            self.proc_params["vaccine_efficiency"],
+            self.proc_params["vaccine_efficiency_symptom"],
             self.current_stages,
             self.agents_next_stage_times,
             self.proc_params["infected_to_recovered_or_death_time"],
@@ -331,12 +352,48 @@ class GradABM:
 
         print(
             t,
-            f"exposed: {self.current_stages.tolist().count(1.0)}",
-            f"infected: {self.current_stages.tolist().count(2.0)}",
-            f"newly exposed: {int(newly_exposed_today.sum().item())}",
-            f"death: {int(target)}",
+            f"exposed: {self.current_stages.tolist().count(1.0)} |",
+            f"infected: {self.current_stages.tolist().count(2.0)} |",
+            f"newly exposed: {int(newly_exposed_today.sum().item())} |",
+            f"potential newly exposed: {int(potentially_exposed_today.sum().item())} |",
+            # f"infection_ratio_distribution_percentage: {infection_ratio_distribution_percentage}",
+            f"target: {int(target)}",
         )
 
+        """
+        x = self.current_stages.cpu().detach().numpy()
+        from collections import Counter
+
+        import numpy as np
+
+        x_index = np.where(x == 2.0)[0]
+        age_distribution_percentage = {
+            value: count / len(self.agents_ages[x_index]) * 100
+            for value, count in Counter(self.agents_ages[x_index].tolist()).items()
+        }
+        age_distribution_percentage = {
+            key: round(value, 2) for key, value in sorted(age_distribution_percentage.items())
+        }
+        ethnicity_distribution_percentage = {
+            value: count / len(self.agents_ethnicity[x_index]) * 100
+            for value, count in Counter(self.agents_ethnicity[x_index].tolist()).items()
+        }
+        ethnicity_distribution_percentage = {
+            key: round(value, 2)
+            for key, value in sorted(ethnicity_distribution_percentage.items())
+        }
+        print(f"    ages: {age_distribution_percentage}")
+        print(f"    ethnicity: {ethnicity_distribution_percentage}")
+
+        counter = Counter(self.all_edgelist[0, :].tolist())
+        # x_id = self.agents_id[x_index]
+        # yy = self.all_edgelist[0, :].tolist()
+        occurrences = {}
+        for value in x_index:
+            occurrences[value] = counter[value]
+        values = occurrences.values()
+        print(f"    Mean value: {sum(list(values)) / len(values)}")
+        """
         # print(t, target)
         stage_records = None
         if save_records:
@@ -348,6 +405,9 @@ class GradABM:
             )
 
         # get next stages without updating yet the current_stages
+        if t == 3:
+            x = 1
+
         next_stages = self.DPM.update_current_stage(
             newly_exposed_today,
             self.current_stages,
@@ -355,7 +415,6 @@ class GradABM:
             death_indices,
             t,
         )
-
         # update times with current_stages
         self.agents_next_stage_times = self.DPM.update_next_stage_times(
             self.proc_params["exposed_to_infected_time"],

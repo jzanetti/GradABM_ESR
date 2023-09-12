@@ -11,9 +11,9 @@ train:
       basic_lr: 0.1
       adaptive_lr:
         enable: true
-        step: 50
-        reduction_ratio: 0.95
-    num_epochs: 10
+        step: 15
+        reduction_ratio: 0.9
+    num_epochs: 50
     clip_grad_norm: 10.0
 
   # -------------------------------------------
@@ -46,28 +46,28 @@ train:
         - 1.0 # 1: Female
       vaccine:
         - 1.0 # 0: not vaccined (e.g., 1.0)
-        - 0.1 # 1: vaccined (e.g., 0.0001)
-      outbreak_ctl:
-        isolation: # for infected cases
-          compliance_rate: 0.9 # float (e.g., 0.9) or None
-          isolation_sf: 0.5 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
-        quarantine: # for exposed cases
-          contact_tracing_coverage: 0.5
-          compliance_rate: 0.5
-        exclusion: # for exposed cases
-          high_risk_settings:
-            - school
-          compliance_rate: 1.0
-        school_closure: # enable if infected case identified
-          enable: true
+        - 0.5 # 1: vaccined (e.g., 0.0001)
+    outbreak_ctl:
+      isolation: # for infected cases
+        compliance_rate: 0.7 # float (e.g., 0.9) or None
+        isolation_sf: 0.01 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
+      # quarantine: # for exposed cases
+      # contact_tracing_coverage: 0.5
+      #  compliance_rate: 0.5
+      exclusion: # for exposed cases
+        high_risk_settings:
+          - school
+        compliance_rate: 1.0
+      school_closure: # enable if infected case identified
+        enable: true
 
   # -------------------------------------------
   # Section 1.3: Interaction number and intensity
   # -------------------------------------------
   interaction:
     school:
-      mu: 4  # the number of interactions for each venue each day
-      bn: 2.0 # the intensity of interaction at each venue
+      mu: 4  # the number of interactions for each venue each day (the higher number, the less interaction intensity)
+      bn: 0.5 # the intensity of interaction at each venue
     household:
       mu: 4
       bn: 2.0
@@ -97,36 +97,41 @@ train:
   # Section 1.4: Learnable parmaters via NN
   # -------------------------------------------
   learnable_params:
-    r0: # overall infection rate
-      enable: false
-      min: 0.1 # 1.0
-      max: 7.5 # 15.0
-      default: 1.0 # 5.0
-    target_sf:
+    vaccine_efficiency_spread:
       enable: true
-      min: 0.1
-      max: 15.0
-      default: 3.0
+      min: 0.003 # 0.3
+      max: 0.01 # 0.8
+      default: 0.005 # 0.6
+    vaccine_efficiency_symptom:
+      enable: true
+      min: 0.05 # 0.01
+      max: 0.15 # 0.15
+      default: 0.1 # 0.03
+    contact_tracing_coverage:
+      enable: true
+      min: 0.3
+      max: 0.7
+      default: 0.5
     initial_infected_percentage:
       enable: true
       min: 0.01
-      max: 1.0
-      default: 0.2
+      max: 0.002
+      default: 0.001
     random_infected_percentgae:
-      enable: true
+      enable: true 
       min: 0.01
-      max: 1.0
-      default: 0.0
+      max: 0.15
+      default: 0.06 # 0.06
     exposed_to_infected_time:
       enable: false
       min: 0.1
       max: 1.5
-      default: 2.0
+      default: 1.0
     infected_to_recovered_or_death_time:
       enable: false
       min: 1.0
       max: 3.0
-      default: 2.0
+      default: 1.0
     infection_gamma_shape:
       enable: true
       min: 1.0
@@ -139,42 +144,51 @@ train:
       default: 10.0
     infection_gamma_scaling_factor: # decide how fast the disease spread
       enable: true
-      min: 0.01
-      max: 0.3
+      min: 0.005
+      max: 0.2
       default: 0.05
-
+  
+  # -------------------------------------------
+  # Section 1.4: Learnable parmaters via NN
+  # -------------------------------------------
+  target:
+    start_timestep: 25
+    end_timestep: 51
 
 # <><><><><><><><><><><><><><><><><><><><>
 # Chapter 2. Prediction & Visualization
 # <><><><><><><><><><><><><><><><><><><><>
 predict:
-  exp1:
+  common:
+    start:
+      timestep: 4
+      name: null
+    end:
+      timestep: -1
+      name: null
+  base_exp:
     # temporal_res: week
-    initial_infected_sa2: null
+    initial_infected_ids: null
+    #  - 1066513
+    #  - 1066520
+    #  - 1066527
     use_random_infection: true
     scaling_factor_update:
+      # vaccine:
+      #  - 1.0 # 0: not vaccined (e.g., 1.0)
+      #  - 0.5 # 1: vaccined (e.g., 0.0001)
+    outbreak_ctl_update:
+      perturbation: false
       outbreak_ctl:
         isolation: # for infected cases
-          compliance_rate: 0.9 # float (e.g., 0.9) or None
-          isolation_sf: 0.1 # when we set it to 0.0, isolated case will be completely exlcuded from interactions 
-        quarantine: # for exposed cases
-          contact_tracing_coverage: 0.5
-          compliance_rate: 0.5
+          compliance_rate: null # float (e.g., 0.7) or None (default: 0.7)
+          isolation_sf: null # when we set it to 0.0, isolated case will be completely exlcuded from interactions (default: 0.5)
+        # quarantine: # for exposed cases
+        #  contact_tracing_coverage: 0.5
+        #  compliance_rate: 0.5
         exclusion: # for exposed cases
           high_risk_settings:
             - school
           compliance_rate: 1.0
         school_closure: # enable if infected case identified
           enable: true
-
-    vis:
-      temporal_res: weekly
-      agents_map:
-        enable: true
-        sa2_path: /home/zhangs/Github/JUNE_NZ_data/geography/statistical-area-2-2018-generalised.csv
-        start_t: 3
-        domain:
-          min_lat: -38.00
-          max_lat: -36.00
-          min_lon: 173.5
-          max_lon: 175.5
