@@ -11,4 +11,7 @@ The model setup is described below:
 
 <img src="etc/gradabm_illustration.PNG" alt="GradABM" width="100%" height="100%">
 
+**The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
+
 Contact: sijin.zhang@esr.cri.nz
+
