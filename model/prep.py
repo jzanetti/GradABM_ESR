@@ -18,6 +18,7 @@ def prep_model_inputs(
     target_data_path: str,
     interaction_cfg: str,
     target_cfg: dict,
+    interaction_ratio_cfg: float,
 ) -> dict:
     print("Step 1: Creating training background data ...")
     target_data = train_data_wrapper(target_data_path, target_cfg)
@@ -27,7 +28,7 @@ def prep_model_inputs(
 
     print("Step 3: Creating interactions ...")
     all_interactions = create_interactions(
-        interaction_cfg, interaction_path, len(all_agents["id"].unique())
+        interaction_cfg, interaction_path, len(all_agents["id"].unique()), interaction_ratio_cfg
     )
 
     return {

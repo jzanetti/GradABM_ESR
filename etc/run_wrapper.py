@@ -1,4 +1,4 @@
-from os.path import join
+from os.path import exists, join
 from shutil import rmtree
 
 from cli.cli_input import main as input_main
@@ -21,15 +21,16 @@ model_cfg_path = "data/measles/base/gradam_exp_vac1.yml"
 vis_cfg_path = "data/measles/base/vis_exp_vac1.yml"
 prd_job_name = "base_exp"
 
-run_input_main = True
+run_input_main = False
 run_model_main = True
 run_predict_main = True
 run_vis_main = True
-remove_all_old_runs = True
+remove_all_old_runs = False
 
 
 if remove_all_old_runs:
-    rmtree(workdir)
+    if exists(workdir):
+        rmtree(workdir)
 
 if run_input_main:
     print(f"Creating input data ...")

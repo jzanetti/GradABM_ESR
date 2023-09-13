@@ -286,6 +286,7 @@ class GradABM:
         total_timesteps,
         debug: bool = False,
         save_records: bool = False,
+        print_step_info: bool = False,
     ):
         if t == 0:
             self.get_params(param_info, param_t)
@@ -329,72 +330,18 @@ class GradABM:
             t,
         )
 
-        """
-        if 165400 in self.agents_area[death_indices]:
-            import numpy
-
-            agent_loc = numpy.where(
-                numpy.array(self.agents_area[death_indices].tolist()) == 165400
-            )[0][0]
+        if print_step_info:
             print(
-                self.agents_ethnicity[death_indices[agent_loc]],
-                self.agents_ages[death_indices[agent_loc]],
+                t,
+                f"exposed: {self.current_stages.tolist().count(1.0)} |",
+                f"infected: {self.current_stages.tolist().count(2.0)} |",
+                f"newly exposed: {int(newly_exposed_today.sum().item())} |",
+                f"potential newly exposed: {int(potentially_exposed_today.sum().item())} |",
+                # f"infection_ratio_distribution_percentage: {infection_ratio_distribution_percentage}",
+                f"target: {int(target)}",
             )
+            # print(f" - Memory: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
 
-        print(
-            t,
-            "165400: ",
-            165400 in self.agents_area[death_indices],
-            "147200: ",
-            147200 in self.agents_area[death_indices],
-        )
-        """
-
-        print(
-            t,
-            f"exposed: {self.current_stages.tolist().count(1.0)} |",
-            f"infected: {self.current_stages.tolist().count(2.0)} |",
-            f"newly exposed: {int(newly_exposed_today.sum().item())} |",
-            f"potential newly exposed: {int(potentially_exposed_today.sum().item())} |",
-            # f"infection_ratio_distribution_percentage: {infection_ratio_distribution_percentage}",
-            f"target: {int(target)}",
-        )
-
-        """
-        x = self.current_stages.cpu().detach().numpy()
-        from collections import Counter
-
-        import numpy as np
-
-        x_index = np.where(x == 2.0)[0]
-        age_distribution_percentage = {
-            value: count / len(self.agents_ages[x_index]) * 100
-            for value, count in Counter(self.agents_ages[x_index].tolist()).items()
-        }
-        age_distribution_percentage = {
-            key: round(value, 2) for key, value in sorted(age_distribution_percentage.items())
-        }
-        ethnicity_distribution_percentage = {
-            value: count / len(self.agents_ethnicity[x_index]) * 100
-            for value, count in Counter(self.agents_ethnicity[x_index].tolist()).items()
-        }
-        ethnicity_distribution_percentage = {
-            key: round(value, 2)
-            for key, value in sorted(ethnicity_distribution_percentage.items())
-        }
-        print(f"    ages: {age_distribution_percentage}")
-        print(f"    ethnicity: {ethnicity_distribution_percentage}")
-
-        counter = Counter(self.all_edgelist[0, :].tolist())
-        # x_id = self.agents_id[x_index]
-        # yy = self.all_edgelist[0, :].tolist()
-        occurrences = {}
-        for value in x_index:
-            occurrences[value] = counter[value]
-        values = occurrences.values()
-        print(f"    Mean value: {sum(list(values)) / len(values)}")
-        """
-        # print(t, target)
         stage_records = None
         if save_records:
             stage_records = shallow_copy(self.current_stages.tolist())
@@ -403,10 +350,6 @@ class GradABM:
             self.print_debug_info(
                 self.current_stages, self.agents_next_stage_times, newly_exposed_today, target, t
             )
-
-        # get next stages without updating yet the current_stages
-        if t == 3:
-            x = 1
 
         next_stages = self.DPM.update_current_stage(
             newly_exposed_today,
@@ -477,6 +420,7 @@ def forward_abm(param_values_all, param_info, abm, training_num_steps, save_reco
             training_num_steps,
             debug=False,
             save_records=save_records,
+            print_step_info=True,
         )
         pred_t = pred_t.type(torch.float64)
         predictions.append(pred_t.to(DEVICE))

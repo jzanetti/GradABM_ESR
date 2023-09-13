@@ -1,6 +1,10 @@
 from logging import getLogger
 from random import uniform as random_uniform
 
+from numpy import intersect1d as numpy_intersect1d
+from numpy import isin as numpy_isin
+from numpy import ones as numpy_ones
+from numpy import where as numpy_where
 from torch import gather as torch_gather
 from torch import manual_seed as torch_seed
 from torch import nonzero as torch_nonzero
@@ -10,10 +14,36 @@ from torch import tensor as torch_tensor
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
+from input import LOC_INDEX
 from model import DEVICE, TORCH_SEED_NUM
 from utils.utils import create_random_seed
 
 logger = getLogger()
+
+
+def school_closure(infected_idx, edge_attr, school_closure_cfg):
+    school_closure_sf = numpy_ones(len(infected_idx))
+
+    if not school_closure_cfg["enable"]:
+        return torch_tensor(school_closure_sf).to(DEVICE)
+
+    infected_idx_index = numpy_where(infected_idx.cpu().detach().numpy() == True)[0]
+
+    if len(infected_idx_index) > 0:
+        school_index = numpy_where(edge_attr[0, :].cpu().detach().numpy() == LOC_INDEX["school"])[
+            0
+        ]
+
+        overlap_index = numpy_intersect1d(infected_idx_index, school_index)
+        schools_to_shutdown = edge_attr[2, :][overlap_index].unique().cpu().detach()
+
+        potential_indices = numpy_where(
+            numpy_isin(edge_attr[2].cpu().detach().numpy(), schools_to_shutdown)
+        )[0]
+        schools_to_shutdown_indices = numpy_intersect1d(school_index, potential_indices)
+        school_closure_sf[schools_to_shutdown_indices] *= school_closure_cfg["scaling_factor"]
+
+    return torch_tensor(school_closure_sf).to(DEVICE)
 
 
 def infected_case_isolation(
@@ -136,6 +166,9 @@ def lam(
         t,
     )
 
+    # Shutdown school
+    school_closure_sf = school_closure(infected_idx, edge_attr, outbreak_ctl_cfg["school_closure"])
+
     edge_network_numbers = edge_attr[
         0, :
     ]  # to account for the fact that mean interactions start at 4th position of x
@@ -146,7 +179,9 @@ def lam(
     else:
         R = 1.0
 
-    res = R * S_A_s * A_s_i * B_n * integrals * isolated_sf / I_bar  # Edge attribute 1 is B_n
+    res = (
+        R * S_A_s * A_s_i * B_n * integrals * isolated_sf * school_closure_sf / I_bar
+    )  # Edge attribute 1 is B_n
 
     # print(t, integrals[infected_idx].sum(), res.sum())
 

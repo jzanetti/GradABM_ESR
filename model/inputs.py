@@ -129,7 +129,10 @@ def agent_interaction_wrapper(
 
 
 def create_interactions(
-    interaction_cfg: dict, interaction_graph_path: str, num_agents: int
+    interaction_cfg: dict,
+    interaction_graph_path: str,
+    num_agents: int,
+    interaction_ratio: float,
 ) -> dict:
     """Obtain interaction networks
 
@@ -183,6 +186,8 @@ def create_interactions(
     if interaction_graph_path.endswith("parquet"):
         create_bidirection = False
         edges_mean_interaction_cfg = pandas_read_parquet(interaction_graph_path)
+
+    edges_mean_interaction_cfg = edges_mean_interaction_cfg.sample(frac=interaction_ratio)
 
     counts_df = edges_mean_interaction_cfg.groupby("id_x")["id_y"].nunique().reset_index()
     counts_df.columns = ["id_x", "count_of_id_y"]
@@ -243,23 +248,25 @@ def init_interaction_graph(
             (random_network_edgelist_forward, random_network_edgelist_backward)
         )
     else:
-        random_network_edge_all = torch_tensor(interaction_graph_cfg[:, 0:3]).t().long()
+        random_network_edge_all = torch_tensor(interaction_graph_cfg[:, 0:4]).t().long()
 
     random_network_edgelist = random_network_edge_all[0:2, :]
 
     random_network_edgeattr_type = random_network_edge_all[2, :]
 
+    random_network_edgeattr_venue = random_network_edge_all[3, :]
+
     random_network_edgeattr_B_n = [
         agents_mean_interactions_bn[key] for key in random_network_edgeattr_type.tolist()
     ]
 
-    random_network_edgeattr_B_n = torch_tensor(random_network_edgeattr_B_n)
-    # random_network_edgeattr_B_n = (
-    #    torch_ones(random_network_edgelist.shape[1]).float()
-    #    * agents_mean_interactions_bn["school"]
-    # )
     random_network_edgeattr = torch_vstack(
-        (random_network_edgeattr_type, random_network_edgeattr_B_n)
+        (
+            random_network_edgeattr_type,
+            torch_tensor(random_network_edgeattr_B_n),
+            torch_tensor(random_network_edgeattr_venue),
+            # random_network_edgeattr_venue,
+        )
     )
 
     all_edgelist = torch_hstack((random_network_edgelist,))

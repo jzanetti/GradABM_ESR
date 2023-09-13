@@ -161,7 +161,7 @@ def get_interactions(
         # interactions = interactions[mask]
 
         logger.info("   Selecting subset of columns ...")
-        interactions = interactions[["id_x", "id_y", "spec_x"]]
+        interactions = interactions[["id_x", "id_y", "spec_x", "group"]]
 
         logger.info("   Removing hospitals ...")
         interactions = interactions[interactions["spec_x"] != "hospital"]
@@ -174,14 +174,15 @@ def get_interactions(
         for proc_id_name in ["id_x", "id_y"]:
             merged_df = interactions.merge(agents, left_on=proc_id_name, right_on="id")
             if proc_id_name == "id_x":
-                columns_to_keep = ["id_y", "spec_x", "row_number"]
+                columns_to_keep = ["id_y", "spec_x", "row_number", "group"]
             else:
-                columns_to_keep = ["id_x", "spec_x", "row_number"]
+                columns_to_keep = ["id_x", "spec_x", "row_number", "group"]
 
             interactions = merged_df[columns_to_keep]
             interactions = interactions.rename(columns={"row_number": proc_id_name})
 
-        interactions = interactions.reindex(columns=["id_x", "id_y", "spec_x"])
+        interactions = interactions.reindex(columns=["id_x", "id_y", "spec_x", "group"])
+        interactions["group"] = interactions["group"].str.extract(r"_(\d+)")
 
         logger.info(f"   Total interactions: {len(interactions)} ...")
 

@@ -89,7 +89,12 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
 
     logger.info("Getting model input ...")
     model_inputs = prep_model_inputs(
-        agents_data, interaction_data, target_data, cfg["interaction"], cfg["target"]
+        agents_data,
+        interaction_data,
+        target_data,
+        cfg["interaction"],
+        cfg["target"],
+        cfg["interaction_ratio"],
     )
 
     logger.info("Building ABM ...")

@@ -148,6 +148,7 @@ def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
         target_data,
         cfg["train"]["interaction"],
         cfg["train"]["target"],
+        cfg["train"]["interaction_ratio"],
     )
 
     logger.info("Building ABM ...")

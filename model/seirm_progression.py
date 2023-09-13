@@ -218,6 +218,7 @@ class SEIRMProgression(DiseaseProgression):
 
         recovered_or_dead_today = (current_stages * after_infected_index) / STAGE_INDEX["infected"]
 
+        print(vaccine_efficiency_symptom)
         death_total_today = vaccine_efficiency_symptom * torch_sum(recovered_or_dead_today)
 
         death_indices = _randomly_assign_death_people(recovered_or_dead_today, death_total_today)
