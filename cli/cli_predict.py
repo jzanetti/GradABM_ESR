@@ -165,6 +165,7 @@ def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
         trained_output["param_model"].param_info(),
         abm,
         trained_output["output_info"]["total_timesteps"],
+        cfg["train"]["optimization"]["use_temporal_params"],
         save_records=True,
     )
 

@@ -11,13 +11,13 @@ import argparse
 from os import makedirs
 from os.path import exists, join
 
-from model import INITIAL_LOSS, PRINT_INCRE
+from model import INITIAL_LOSS, PRERUN_NUM_EPOCHS, PRINT_INCRE
 from model.abm import build_abm, forward_abm
 from model.diags import save_outputs
 from model.loss_func import get_loss_func, loss_optimization
-from model.param_model import create_param_model, param_model_forward
+from model.param_model import create_param_model, obtain_param_cfg, param_model_forward
 from model.postp import postproc_train
-from model.prep import prep_env, prep_model_inputs
+from model.prep import prep_env, prep_model_inputs, update_params_for_prerun
 from utils.utils import get_params_increments, read_cfg, setup_logging
 
 
@@ -73,7 +73,15 @@ def setup_parser():
     return parser.parse_args()
 
 
-def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
+def main(
+    workdir,
+    exp,
+    cfg,
+    agents_data,
+    interaction_data,
+    target_data,
+    prerun_params: list or None = None,
+):
     """Run June model for New Zealand"""
 
     if not exists(workdir):
@@ -106,7 +114,11 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
     )
 
     logger.info("Creating initial parameters (to be trained) ...")
-    param_model = create_param_model(cfg["learnable_params"])
+
+    param_model = create_param_model(
+        obtain_param_cfg(cfg["learnable_params"], prerun_params),
+        cfg["optimization"]["use_temporal_params"],
+    )
 
     logger.info("Creating loss function ...")
     loss_def = get_loss_func(param_model, model_inputs["total_timesteps"], cfg["optimization"])
@@ -114,14 +126,22 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
     param_values_list = []
     smallest_loss = INITIAL_LOSS
 
-    for epi in range(cfg["optimization"]["num_epochs"]):
-        param_values_all = param_model_forward(param_model, model_inputs["target"])
+    if prerun_params:
+        num_epochs = PRERUN_NUM_EPOCHS
+        cfg = update_params_for_prerun(cfg)
+    else:
+        num_epochs = cfg["optimization"]["num_epochs"]
 
+    for epi in range(num_epochs):
+        param_values_all = param_model_forward(
+            param_model, model_inputs["target"], cfg["optimization"]["use_temporal_params"]
+        )
         predictions = forward_abm(
             param_values_all,
             param_model.param_info(),
             abm,
             model_inputs["total_timesteps"],
+            cfg["optimization"]["use_temporal_params"],
             save_records=False,
         )
 
@@ -145,6 +165,10 @@ def main(workdir, exp, cfg, agents_data, interaction_data, target_data):
             smallest_loss = epoch_loss
         epoch_loss_list.append(epoch_loss)
         param_values_list.append(param_values_all)
+
+    if prerun_params:
+        logger.info("Saved smallest loss for the prerun ...")
+        return smallest_loss
 
     logger.info(param_values_all)
 

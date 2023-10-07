@@ -126,14 +126,15 @@ def lam(
     # It seems to depend on the age, sex, ethnicity,
     # and vaccination status of the source node x_i.
     # --------------------------------------------------
-    SFSusceptibility_vaccine = torch_tensor([1.0, vaccine_efficiency_spread]).to(
-        DEVICE
-    )  # my_tensor = torch.tensor(my_list)
+    if t == -1:
+        SFSusceptibility_vaccine = torch_ones_like(x_i[:, 3].long())
+    else:
+        SFSusceptibility_vaccine = vaccine_efficiency_spread * x_i[:, 3].long()
     S_A_s = (
         SFSusceptibility_age[x_i[:, 0].long()]
         * SFSusceptibility_sex[x_i[:, 1].long()]
         * SFSusceptibility_ethnicity[x_i[:, 2].long()]
-        * SFSusceptibility_vaccine[x_i[:, 3].long()]
+        * SFSusceptibility_vaccine
     )  # age * sex * ethnicity dependant * vaccine
 
     # --------------------------------------------------
@@ -158,16 +159,22 @@ def lam(
     integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
 
     # Isolate infected cases
-    isolated_sf = infected_case_isolation(
-        infected_idx,
-        contact_tracing_coverage,
-        outbreak_ctl_cfg["isolation"]["compliance_rate"],
-        outbreak_ctl_cfg["isolation"]["isolation_sf"],
-        t,
-    )
+    if t == -1:
+        isolated_sf = torch_ones_like(infected_idx)
+        school_closure_sf = torch_ones_like(infected_idx)
+    else:
+        isolated_sf = infected_case_isolation(
+            infected_idx,
+            contact_tracing_coverage,
+            outbreak_ctl_cfg["isolation"]["compliance_rate"],
+            outbreak_ctl_cfg["isolation"]["isolation_sf"],
+            t,
+        )
 
-    # Shutdown school
-    school_closure_sf = school_closure(infected_idx, edge_attr, outbreak_ctl_cfg["school_closure"])
+        # Shutdown school
+        school_closure_sf = school_closure(
+            infected_idx, edge_attr, outbreak_ctl_cfg["school_closure"]
+        )
 
     edge_network_numbers = edge_attr[
         0, :
@@ -227,6 +234,43 @@ class InfectionNetwork(MessagePassing):
 
         if vis_debug:
             self.vis_debug_graph(edge_index)
+
+        """
+        The propagate() method of the MessagePassing class performs the 
+        message passing algorithm on a given graph. It takes the following arguments:
+
+         - x: A tensor of node features.
+         - edge_index: A tensor of edge indices.
+
+        The propagate() method returns a tensor of updated node features.
+
+        The x_i and x_j tensors are the node features for the source and target nodes of each edge, respectively. 
+        They are obtained by splitting the x tensor using the edge_index tensor.
+
+        For example:
+
+            edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long)
+            x = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float)
+            
+            - The above tensor could represent a graph with two nodes and two edges. 
+            - The first row of the tensor represents the first edge, which goes from node 0 to node 1. 
+            - The second row of the tensor represents the second edge, which goes from node 1 to node 2.
+            
+            The propagate() method would split the x tensor as follows:
+
+            x_i = torch.tensor([[1.0], [2.0]])
+            x_j = torch.tensor([[2.0], [3.0]]) 
+
+            - The x_i tensor would then contain the node features for the source nodes of each edge:
+            - The x_j tensor would then contain the node features for the target nodes of each edge:
+
+        We also can get the source node where have the most connections (e.g., having the most target nodes):
+
+            import torch
+            num_outgoing_edges = torch.bincount(edge_index[0])
+            max_outgoing_edges_idx = torch.argmax(num_outgoing_edges)
+
+        """
 
         return self.propagate(
             edge_index,

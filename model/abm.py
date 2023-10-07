@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from numpy import array, isnan, where
 from numpy.random import choice
+from pandas import read_csv as pandas_read_csv
 from scipy.stats import gamma as stats_gamma
 from torch import manual_seed as torch_seed
 from torch import ones_like as torch_ones_like
@@ -14,7 +15,7 @@ from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
-from model import ALL_PARAMS, DEVICE, STAGE_INDEX, TORCH_SEED_NUM, USE_TEMPORAL_PARAMS
+from model import ALL_PARAMS, DEVICE, STAGE_INDEX, TORCH_SEED_NUM
 from model.infection_network import InfectionNetwork
 from model.seirm_progression import SEIRMProgression
 from utils.utils import create_random_seed, round_a_list
@@ -322,7 +323,7 @@ class GradABM:
             t,
         )
 
-        recovered_dead_now, death_indices, target = self.DPM.get_target_variables(
+        potential_infected, death_indices, target = self.DPM.get_target_variables(
             self.proc_params["vaccine_efficiency_symptom"],
             self.current_stages,
             self.agents_next_stage_times,
@@ -400,7 +401,14 @@ class GradABM:
         return res
 
 
-def forward_abm(param_values_all, param_info, abm, training_num_steps, save_records: bool = False):
+def forward_abm(
+    param_values_all,
+    param_info,
+    abm,
+    training_num_steps,
+    use_temporal_params: bool,
+    save_records: bool = False,
+):
     predictions = []
     all_records = []
     all_target_indices = []
@@ -408,7 +416,7 @@ def forward_abm(param_values_all, param_info, abm, training_num_steps, save_reco
     param_values_all = param_values_all.to(abm.device)
 
     for time_step in range(training_num_steps):
-        if USE_TEMPORAL_PARAMS:
+        if use_temporal_params:
             param_values = param_values_all[0, time_step, :].to(abm.device)
         else:
             param_values = param_values_all
@@ -463,7 +471,21 @@ def build_abm(all_agents, all_interactions, infection_cfg: dict, cfg_update: Non
             "initial_infected_ids",
         ]:
             try:
-                params[param_key] = cfg_update[param_key]
+                if param_key == "initial_infected_ids":
+                    initial_infected_ids_cfg = cfg_update["initial_infected_ids"]
+                    all_infected_ids = []
+                    for proc_agent in initial_infected_ids_cfg:
+                        if isinstance(proc_agent, str):
+                            if proc_agent.endswith("csv"):
+                                proc_data = pandas_read_csv(proc_agent)
+                                all_infected_ids.extend(list(proc_data["id"]))
+                            else:
+                                raise Exception("Not able to get the cfg for initial_infected_ids")
+                        else:
+                            all_infected_ids.append(proc_agent)
+                    params[param_key] = all_infected_ids
+                else:
+                    params[param_key] = cfg_update[param_key]
             except KeyError:
                 params[param_key] = None
     abm = GradABM(params)
