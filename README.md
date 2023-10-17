@@ -1,4 +1,4 @@
-JUNE-NZ (GradABM)
+JUNE-NZ
 =============
 
 This is the implementation of the differentiable ABM at ESR, this is part of the ``JUNE-NZ`` public health modelling framework at ESR. 
@@ -14,4 +14,8 @@ The model setup is described below:
 **The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
 
 Contact: sijin.zhang@esr.cri.nz
+
+
+Structure of the framework
+=============
 
