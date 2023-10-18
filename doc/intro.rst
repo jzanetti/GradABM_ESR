@@ -58,5 +58,5 @@ There are mainly five components in **JUNE-NZ**:
 
 The following figure shows the general workflow for this model:
 
-.. image:: data/model_workflow.PNG
+.. image:: doc_data/model_workflow.PNG
    :alt: model workflow
