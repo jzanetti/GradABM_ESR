@@ -14,7 +14,7 @@ Furthermore, calibrating these models can be challenging and time-consuming due 
 including unobservable ones like interaction matrices in schools or workplaces.
 
 To address these issues, researchers from _Oxford University_ and _MIT_ have jointly developed **GradABM** 
-(see the details [here](https://arxiv.org/abs/2207.09714)),
+(see the details `here <https://arxiv.org/abs/2207.09714>`_),
 a new approach that uses Graph Neural Networks (GNNs) and Long Short-Term Memory (LSTM) 
 to represent agents and their interactions. **GradABM** is able to simulate large populations 
 of millions of agents much faster than traditional ABMs, 
@@ -37,7 +37,15 @@ and provides an external-facing dashboard that will allow end-users to run the m
 Software structure overview
 **********
 There are mainly five components in **JUNE-NZ**:
-- cli_input: Taking sythentic population, and the observed number of cases (the target for the learning process), and turn them to the format that can be easily consumed by the system.
-- cli_train: Model training and producing the trained model parameters for prediction.
-- cli_agents: Creating a single (or a cluster of) agent(s) as the initial infectee for prediction.
-- cli_predict: 
+
+- `cli_input`: Responsible for taking synthetic population data and the observed number of cases (the target for the learning process) and converting them into a format that can be easily consumed by the system.
+
+- `cli_train`: Handles model training and produces the trained model parameters for prediction.
+
+- `cli_agents`: In charge of creating a single (or a cluster of) agent(s) as the initial infectee for prediction.
+
+- `cli_predict`: Generates predictions.
+
+- `cli_vis`: Provides visualization from the prediction.
+
+The 
