@@ -19,7 +19,7 @@ including unobservable ones like interaction matrices in schools or workplaces.
 
 The new technology - GradABM
 =============
-To address these issues, researchers from _Oxford_ and _MIT_ have jointly developed **GradABM** 
+To address these issues, researchers from ``Oxford`` and ``MIT`` have jointly developed **GradABM** 
 (see the details `here <https://arxiv.org/abs/2207.09714>`_),
 a new approach that uses Graph Neural Networks (GNNs) and Long Short-Term Memory (LSTM) 
 to represent agents and their interactions. **GradABM** is able to simulate large populations 
@@ -58,5 +58,5 @@ There are mainly five components in **JUNE-NZ**:
 
 The following figure shows the general workflow for this model:
 
-.. image:: etc/model_workflow.PNG
+.. image:: data/model_workflow.PNG
    :alt: model workflow
