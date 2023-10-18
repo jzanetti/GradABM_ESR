@@ -31,3 +31,13 @@ ESR is working with international partners to incorporate the methodology of **G
 with the aim of developing a real-time risk and policy analysis tool for public health concerns. 
 JUNE-NZ links to ESR's notifiable disease database, enabling seamless observation and modelling, 
 and provides an external-facing dashboard that will allow end-users to run the model, using different scenarios.
+
+
+**********
+Software structure overview
+**********
+There are mainly five components in **JUNE-NZ**:
+- cli_input: Taking sythentic population, and the observed number of cases (the target for the learning process), and turn them to the format that can be easily consumed by the system.
+- cli_train: Model training and producing the trained model parameters for prediction.
+- cli_agents: Creating a single (or a cluster of) agent(s) as the initial infectee for prediction.
+- cli_predict: 
