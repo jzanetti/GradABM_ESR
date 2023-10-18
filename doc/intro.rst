@@ -3,8 +3,11 @@ Introduction
 ##############
 
 **********
-The need for improved practice 
+Background
 **********
+
+The need for improved practice 
+=============
 
 Traditional agent-based models (ABMs) are built upon object-oriented programming, defining agents and actions individually for ease of understanding and design 
 (e.g., EpiModel by Emory University, a widely used model for infectious disease research). 
@@ -13,7 +16,10 @@ slow computation for large-scale simulations.
 Furthermore, calibrating these models can be challenging and time-consuming due to numerous parameters, 
 including unobservable ones like interaction matrices in schools or workplaces.
 
-To address these issues, researchers from _Oxford University_ and _MIT_ have jointly developed **GradABM** 
+
+The new technology - GradABM
+=============
+To address these issues, researchers from _Oxford_ and _MIT_ have jointly developed **GradABM** 
 (see the details `here <https://arxiv.org/abs/2207.09714>`_),
 a new approach that uses Graph Neural Networks (GNNs) and Long Short-Term Memory (LSTM) 
 to represent agents and their interactions. **GradABM** is able to simulate large populations 
@@ -25,6 +31,8 @@ based on previous studies and empirical experience.
 The deep learning neural network will then learn the actual values of the parameters, 
 taking into account the temporal evolution of social dynamics.
 
+The adaptation for New Zealand
+=============
 **GradABM** was first developed to simulate how vaccines were given and their impacts during the COVID-19 pandemic in London. 
 It has since been further developed in other countries such as the modelling of flu seasons in the US. 
 ESR is working with international partners to incorporate the methodology of **GradABM** into the JUNE-NZ model, 
@@ -48,4 +56,7 @@ There are mainly five components in **JUNE-NZ**:
 
 - `cli_vis`: Provides visualization from the prediction.
 
-The 
+The following figure shows the general workflow for this model:
+
+.. image:: etc/model_workflow.PNG
+   :alt: model workflow
