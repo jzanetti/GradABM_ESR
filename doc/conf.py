@@ -35,4 +35,4 @@ html_theme = "sphinx_rtd_theme"
 epub_show_urls = "footnote"
 
 
-html_static_path = ["_static"]
+html_static_path = ["source/_static"]
