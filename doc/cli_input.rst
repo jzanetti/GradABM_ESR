@@ -2,7 +2,8 @@
 Input
 ##############
 
-This section is related to the JUNE-NZ component: **cli_input**.
+This section is related to the JUNE-NZ component: **cli_input**. Note that the original purpose of **cli_input** is to write the measles data records to the format
+that can be used in JUNE-NZ, therefore it is not a necesary step for all modelling requirements.
 
 **********
 Background
@@ -16,6 +17,15 @@ This approach allows us to create multiple input datasets for JUNE-NZ, which can
 In order to create the input for JUNE-NZ, we need the following dataset as the input for **cli_input**:
 
 - ``target`` data: The target dataset represents the ground truth, such as the recorded number of COVID-19 cases, that the model aims to learn and predict.
+
+- ``agent`` data: The agent dataset comprises essential attributes for modeling purposes, such as age, sex, ethnicity, geographic area, group (e.g., the unique household identifier to which the agent belongs), spec (e.g., household, city transport, etc.), and timestamp.
+
+- ``sa2 - DHB`` data: This dataset provides a mapping between SA2 (ID) and DHB (ID and name).
+
+The output from **cli_input** include:
+
+- ``agent_group`` data: This dataset provides the agent ID and the group (e.g., the unique household identifier to which the agent belongs) that where the agent belongs. It is extracted from the ``agent`` data.
+
 
 **********
 target data
@@ -35,7 +45,6 @@ in the format of __parquet__. An example of the target dataset is shown below:
 
 **cli_input** will combine the above dataset, and produce something like the below (which is the one used in training for JUNE-NZ):
 
-
 +--------+------+
 |        | target |
 +========+======+
@@ -52,8 +61,67 @@ in the format of __parquet__. An example of the target dataset is shown below:
 | Week_7 | 22.0 |
 +--------+------+
 
-The processed output of the target data will be stored in the format of __csv__ in the working directory.
+The processed output of the target data will be stored in the format of ``csv`` in the working directory.
 
+
+**********
+agent and agent group data
+**********
+
+The agent and agent group data are related to the agent and interactions that we will use in the model.
+
+Base agent data (intermediate data)
+================
+
+The agent data is produced from the original JUNE model, it reads in the format in ``parquet``
+
+An example of agent data is shown below:
+
++-----+-----+-----+-----------+-------+----------------+-----------+--------------+
+| id  | age | sex | ethnicity  | area  | group          | spec      | time         |
++=====+=====+=====+===========+=======+================+===========+==============+
+| 0   | 0   | m   | European  | 110400| Household_00692| household | 20200302T00  |
++-----+-----+-----+-----------+-------+----------------+-----------+--------------+
+| 276 | 6   | f   | European  | 110400| Household_00692| household | 20200302T00  |
++-----+-----+-----+-----------+-------+----------------+-----------+--------------+
+| 1   | 0   | f   | European  | 110400| Household_01228| household | 20200302T00  |
++-----+-----+-----+-----------+-------+----------------+-----------+--------------+
+| 2   | 0   | m   | European  | 110400| Household_00371| household | 20200302T00  |
++-----+-----+-----+-----------+-------+----------------+-----------+--------------+
+| 386 | 8   | m   | European  | 110400| Household_00371| household | 20200302T00  |
++-----+-----+-----+-----------+-------+----------------+-----------+--------------+
+
+
+sa2 - DHB (intermediate data)
+================
+This straightforward mapping directory illustrates the relationship between SA2 and DHB, as demonstrated in the following example:
+
++-----+---------+------------------+
+| SA2 | DHB_code| DHB_name         |
++=====+=========+==================+
+| 460123 | 146100  | Counties Manukau |
++-----+---------+------------------+
+| 463213 | 146400  | Counties Manukau |
++-----+---------+------------------+
+| 46117 | 146800  | Counties Manukau |
++-----+---------+------------------+
+| 47422 | 147500  | Counties Manukau |
++-----+---------+------------------+
+
+
+Agent group data
+================
+The agent group data represents the mapping between agent IDs and their corresponding group identifiers, as illustrated in the example below:
+
++--------+----------------+
+|   id   |     group      |
++========+================+
+| 1014806| Household_313093|
++--------+----------------+
+| 1014807| Household_313988|
++--------+----------------+
+| 1014808| Household_312993|
++--------+----------------+
 
 
 **********
@@ -67,24 +135,24 @@ The configuration for **cli_input** contains two parts:
 An example of the configuration can be found below:
 
 ```
-    interaction_ratio:
-        household: 0.1
-        cinema: 0.1
-        pub: 0.1
-        gym: 0.1
-        grocery: 0.1
-        company: 0.05
-        school: 0.05
-        hospital: 0.03
-        inter_city_transport: 0.3
-        city_transport: 0.3
+interaction_ratio:
+    household: 0.1
+    cinema: 0.1
+    pub: 0.1
+    gym: 0.1
+    grocery: 0.1
+    company: 0.05
+    school: 0.05
+    hospital: 0.03
+    inter_city_transport: 0.3
+    city_transport: 0.3
 
-    vaccine_ratio:
-        European: 0.75
-        Maori: 0.47
-        Pacific: 0.6
-        Asian: 0.89
-        MELAA: 0.75
+vaccine_ratio:
+    European: 0.75
+    Maori: 0.47
+    Pacific: 0.6
+    Asian: 0.89
+    MELAA: 0.75
 ```
 
 The dataset will be randomly generated according to the percentages specified in the configuration. 

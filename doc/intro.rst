@@ -46,7 +46,7 @@ Software structure overview
 **********
 There are mainly five components in **JUNE-NZ**:
 
-- `cli_input`: Responsible for taking synthetic population data and the observed number of cases (the target for the learning process) and converting them into a format that can be easily consumed by the system.
+- `cli_input` (optional): Responsible for taking synthetic population data and the observed number of cases (the target for the learning process) and converting them into a format that can be easily consumed by the system.
 
 - `cli_train`: Handles model training and produces the trained model parameters for prediction.
 
