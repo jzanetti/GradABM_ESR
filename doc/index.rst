@@ -18,3 +18,4 @@ Contents
 .. toctree::
 
    intro
+   cli_input

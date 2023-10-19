@@ -19,7 +19,7 @@ including unobservable ones like interaction matrices in schools or workplaces.
 
 The new technology - GradABM
 =============
-To address these issues, researchers from ``Oxford`` and ``MIT`` have jointly developed **GradABM** 
+To address these issues, researchers from __Oxford__ and __MIT__ have jointly developed **GradABM** 
 (see the details `here <https://arxiv.org/abs/2207.09714>`_),
 a new approach that uses Graph Neural Networks (GNNs) and Long Short-Term Memory (LSTM) 
 to represent agents and their interactions. **GradABM** is able to simulate large populations 
