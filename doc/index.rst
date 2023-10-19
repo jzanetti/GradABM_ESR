@@ -19,3 +19,4 @@ Contents
 
    intro
    cli_input
+   cli_train
