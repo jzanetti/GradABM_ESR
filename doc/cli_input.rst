@@ -14,17 +14,19 @@ To mitigate the graph expansion in the Graph Neural Network and provide a more a
 we suggest randomly partitioning the interactions from the original synthetic population. 
 This approach allows us to create multiple input datasets for JUNE-NZ, which can be run in parallel for simulations.
 
-In order to create the input for JUNE-NZ, we need the following dataset as the input for **cli_input**:
+- **Input**: In order to create the input for JUNE-NZ, we need the following dataset as the input for **cli_input**:
 
-- ``target`` data: The target dataset represents the ground truth, such as the recorded number of COVID-19 cases, that the model aims to learn and predict.
+    - ``target`` data: The target dataset represents the ground truth, such as the recorded number of COVID-19 cases, that the model aims to learn and predict.
 
-- ``agent`` data: The agent dataset comprises essential attributes for modeling purposes, such as age, sex, ethnicity, geographic area, group (e.g., the unique household identifier to which the agent belongs), spec (e.g., household, city transport, etc.), and timestamp.
+    - ``agent`` data: The agent dataset comprises essential attributes for modeling purposes, such as age, sex, ethnicity, geographic area, group (e.g., the unique household identifier to which the agent belongs), spec (e.g., household, city transport, etc.), and timestamp.
 
-- ``sa2 - DHB`` data: This dataset provides a mapping between SA2 (ID) and DHB (ID and name).
+    - ``sa2 - DHB`` data: This dataset provides a mapping between SA2 (ID) and DHB (ID and name).
 
-The output from **cli_input** include:
+- **Output**: The output from **cli_input** include:
 
-- ``agent_group`` data: This dataset provides the agent ID and the group (e.g., the unique household identifier to which the agent belongs) that where the agent belongs. It is extracted from the ``agent`` data.
+    - ``target`` data: This dataset represents the ground truth to be learned from the model.
+
+    - ``agent_group`` data: This dataset provides the agent ID and the group (e.g., the unique household identifier to which the agent belongs) that where the agent belongs. It is extracted from the ``agent`` data.
 
 
 **********
@@ -134,26 +136,26 @@ The configuration for **cli_input** contains two parts:
 
 An example of the configuration can be found below:
 
-```
-interaction_ratio:
-    household: 0.1
-    cinema: 0.1
-    pub: 0.1
-    gym: 0.1
-    grocery: 0.1
-    company: 0.05
-    school: 0.05
-    hospital: 0.03
-    inter_city_transport: 0.3
-    city_transport: 0.3
+.. code-block:: yaml
 
-vaccine_ratio:
-    European: 0.75
-    Maori: 0.47
-    Pacific: 0.6
-    Asian: 0.89
-    MELAA: 0.75
-```
+    interaction_ratio:
+        household: 0.1
+        cinema: 0.1
+        pub: 0.1
+        gym: 0.1
+        grocery: 0.1
+        company: 0.05
+        school: 0.05
+        hospital: 0.03
+        inter_city_transport: 0.3
+        city_transport: 0.3
+
+    vaccine_ratio:
+        European: 0.75
+        Maori: 0.47
+        Pacific: 0.6
+        Asian: 0.89
+        MELAA: 0.75
 
 The dataset will be randomly generated according to the percentages specified in the configuration. 
 This allows us to produce multiple datasets with distinct synthetic population representations, 
