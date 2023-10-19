@@ -23,27 +23,35 @@ target
 The target dataset represents the ground truth, such as the recorded number of COVID-19 cases, that the model aims to learn and predict. For now, the target dataset must be 
 in the format of __parquet__. An example of the target dataset is shown below:
 
-```
-                Region  Week_11 Week_13  Week_15  Week_16  Week_17  Week_18 Week_19 Week_20 Week_21 Week_22  
-0            Waitemata      1.0       2      3.0      0.0      4.0      6.0       6       6       5       4  
-1             Auckland      2.0       2      1.0      0.0      1.0      1.0       2       1       4       2
-2     Counties Manukau      0.0       0      0.0      0.0      0.0      1.0       2       2       1       3
-```
++-------------------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+| Region            | Week_11| Week_13| Week_15| Week_16| Week_17| Week_18| Week_19| Week_20| Week_21| Week_22|
++===================+========+========+========+========+========+========+========+========+========+========+
+| Waitemata         | 1.0    | 2      | 3.0    | 0.0    | 4.0    | 6.0    | 6      | 6      | 5      | 4      |
++-------------------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+| Auckland          | 2.0    | 2      | 1.0    | 0.0    | 1.0    | 1.0    | 2      | 1      | 4      | 2      |
++-------------------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+| Counties Manukau  | 0.0    | 0      | 0.0    | 0.0    | 0.0    | 1.0    | 2      | 2      | 1      | 3      |
++-------------------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
 
 **cli_input** will combine the above dataset, and produce something like the below (which is the one used in training for JUNE-NZ):
 
-```
-         target
-Week_2      0.0
-Week_3      0.0
-Week_4      3.0
-Week_5      5.0
-Week_6      11.0
-Week_7      22.0
-Week_8      3.0
-Week_9      0.0
-Week_10     0.0
-```
+
++--------+------+
+|        | target |
++========+======+
+| Week_2 | 0.0  |
++--------+------+
+| Week_3 | 0.0  |
++--------+------+
+| Week_4 | 3.0  |
++--------+------+
+| Week_5 | 5.0  |
++--------+------+
+| Week_6 | 11.0 |
++--------+------+
+| Week_7 | 22.0 |
++--------+------+
+
 The processed output of the target data will be stored in the format of __csv__ in the working directory.
 
 
