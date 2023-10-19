@@ -48,7 +48,7 @@ in the format of __parquet__. An example of the target dataset is shown below:
 **cli_input** will combine the above dataset, and produce something like the below (which is the one used in training for JUNE-NZ):
 
 +--------+------+
-|        | target |
+|        |target|
 +========+======+
 | Week_2 | 0.0  |
 +--------+------+
@@ -80,7 +80,7 @@ The agent data is produced from the original JUNE model, it reads in the format 
 An example of agent data is shown below:
 
 +-----+-----+-----+-----------+-------+----------------+-----------+--------------+
-| id  | age | sex | ethnicity  | area  | group          | spec      | time         |
+| id  | age | sex | ethnicity | area  | group          | spec      | time         |
 +=====+=====+=====+===========+=======+================+===========+==============+
 | 0   | 0   | m   | European  | 110400| Household_00692| household | 20200302T00  |
 +-----+-----+-----+-----------+-------+----------------+-----------+--------------+
