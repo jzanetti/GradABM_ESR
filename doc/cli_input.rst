@@ -72,10 +72,11 @@ The processed output of the target data will be stored in the format of ``csv`` 
 
 The agent and agent group data are related to the agent and interactions that we will use in the model.
 
-3.1 Base agent data (intermediate data)
+3.1 Base agent data
 ================
 
-The agent data is produced from the original JUNE model, it reads in the format in ``parquet``
+The agent data is produced from the original JUNE model, and then being processed accordingly (e.g., converting ethnicity from name to identifier, adding vaccination etc.). 
+It exports in the format in ``parquet``
 
 An example of agent data is shown below:
 
