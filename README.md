@@ -15,7 +15,3 @@ The model setup is described below:
 
 Contact: sijin.zhang@esr.cri.nz
 
-
-Structure of the framework
-=============
-

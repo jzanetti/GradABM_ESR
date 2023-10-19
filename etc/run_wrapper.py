@@ -25,7 +25,7 @@ model_cfg_path = "data/measles/base/gradam_exp_vac1.yml"
 vis_cfg_path = "data/measles/base/vis_exp_vac1.yml"
 prd_job_name = "base_exp"
 
-run_input_main = False
+run_input_main = True
 run_prerun = False
 run_model_main = False
 run_predict_main = True
