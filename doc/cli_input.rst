@@ -125,6 +125,27 @@ The agent group data represents the mapping between agent IDs and their correspo
 | 1014808| Household_312993|
 +--------+-----------------+
 
+3.4 Interaction data
+================
+
+Interaction data is derived from the base agent data, such as **JUNE**, to construct pairwise datasets for each interaction. Each row of the dataset is structured as follows:
+
+- ``id_x``: Identifies one of the individuals involved in the interaction.
+- ``id_y``: Identifies another individual in the interaction.
+- ``spec_x``: Represents the category of the venue group (e.g., school, hospital) using a unique identifier (e.g., 0, 1, etc.).
+- ``group``: Specifies the venue where the interaction takes place.
+
+One of the examples of the data is shown below:
+
++------+------+--------+--------+
+| id_x | id_y | spec_x | group  |
++------+------+--------+--------+
+| 25732| 27402| 0      | 329971 |
+| 27401| 27402| 0      | 329971 |
+| 27400| 27402| 0      | 329971 |
+| 25733| 27402| 0      | 329971 |
+| 27403| 27402| 0      | 329971 |
++------+------+--------+--------+
 
 **********
 4. Configuration
