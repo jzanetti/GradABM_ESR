@@ -15,10 +15,10 @@ This approach allows us to create multiple input datasets for JUNE-NZ, which can
 
 In order to create the input for JUNE-NZ, we need the following dataset as the input for **cli_input**:
 
-- ``target``: The target dataset represents the ground truth, such as the recorded number of COVID-19 cases, that the model aims to learn and predict.
+- ``target`` data: The target dataset represents the ground truth, such as the recorded number of COVID-19 cases, that the model aims to learn and predict.
 
 **********
-target
+target data
 **********
 The target dataset represents the ground truth, such as the recorded number of COVID-19 cases, that the model aims to learn and predict. For now, the target dataset must be 
 in the format of __parquet__. An example of the target dataset is shown below:
