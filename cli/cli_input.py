@@ -11,14 +11,14 @@ import argparse
 from os import makedirs
 from os.path import exists
 
-from input.create_inputs import (
+from process.input.create_inputs import (
     get_agents,
     get_interactions,
     get_sa2_from_dhb,
     read_june_nz_inputs,
     write_target,
 )
-from utils.utils import read_cfg, setup_logging
+from process.utils.utils import read_cfg, setup_logging
 
 
 def get_example_usage():
@@ -43,9 +43,13 @@ def setup_parser():
     )
 
     parser.add_argument(
-        "--workdir", required=True, help="Working directory, e.g., where the output will be stored"
+        "--workdir",
+        required=True,
+        help="Working directory, e.g., where the output will be stored",
     )
-    parser.add_argument("--cfg", required=True, help="Configuration path for the input ...")
+    parser.add_argument(
+        "--cfg", required=True, help="Configuration path for the input ..."
+    )
 
     parser.add_argument(
         "--sa2_dhb_data",
@@ -62,7 +66,11 @@ def setup_parser():
     )
 
     parser.add_argument(
-        "--dhb_list", nargs="+", help="DHB list to be used", required=False, default=None
+        "--dhb_list",
+        nargs="+",
+        help="DHB list to be used",
+        required=False,
+        default=None,
     )
 
     """

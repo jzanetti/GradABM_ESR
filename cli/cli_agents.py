@@ -11,8 +11,8 @@ import argparse
 from os import makedirs
 from os.path import exists
 
-from input.agents_filter import agents_filter, obtain_agents_info, write_out_df
-from utils.utils import read_cfg, setup_logging
+from process.input.agents_filter import agents_filter, obtain_agents_info, write_out_df
+from process.utils.utils import read_cfg, setup_logging
 
 
 def get_example_usage():
@@ -31,10 +31,14 @@ def setup_parser():
     )
 
     parser.add_argument(
-        "--workdir", required=True, help="Working directory, e.g., where the output will be stored"
+        "--workdir",
+        required=True,
+        help="Working directory, e.g., where the output will be stored",
     )
     parser.add_argument("--agents_data", required=True, help="Agents data in parquet")
-    parser.add_argument("--interaction_data", required=True, help="Interaction data in parquet")
+    parser.add_argument(
+        "--interaction_data", required=True, help="Interaction data in parquet"
+    )
     parser.add_argument(
         "--cfg", required=True, help="Configuration path for identifying agents ..."
     )

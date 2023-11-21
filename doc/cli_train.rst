@@ -14,3 +14,4 @@ The GNN facilitates the application of various policies within the simulated soc
 The model's behavior is governed by a range of parameters specified in the configuration file. 
 These parameters are initially set using a Long Short-Term Memory Neural Network, and they are fine-tuned during the model's iterations through backpropagation. 
 This process involves minimizing the error between the model's predictions and the desired outcomes.
+
