@@ -42,7 +42,10 @@ def prep_model_inputs(
 
     print("Step 3: Creating interactions ...")
     all_interactions = create_interactions(
-        interaction_cfg, interaction_path, len(all_agents["id"].unique()), interaction_ratio_cfg
+        interaction_cfg,
+        interaction_path,
+        len(all_agents["id"].unique()),
+        interaction_ratio_cfg,
     )
 
     return {

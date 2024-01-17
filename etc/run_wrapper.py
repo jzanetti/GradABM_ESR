@@ -27,8 +27,8 @@ prd_job_name = "base_exp"
 
 run_input_main = True
 run_prerun = False
-run_model_main = False
-run_predict_main = True
+run_model_main = True
+run_predict_main = False
 run_vis_main = False
 remove_all_old_runs = False
 
@@ -80,7 +80,9 @@ if run_model_main:
             f"member_{proc_member}",
             model_cfg_path,
             join(workdir, "input", "agents.parquet"),
-            join(workdir, "input", f"interaction_graph_cfg_member_{proc_member}.parquet"),
+            join(
+                workdir, "input", f"interaction_graph_cfg_member_{proc_member}.parquet"
+            ),
             join(workdir, "input", "output.csv"),
         )
 

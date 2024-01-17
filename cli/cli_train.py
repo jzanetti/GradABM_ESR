@@ -38,7 +38,9 @@ def setup_parser():
 
     parser.add_argument("--exp", required=True, help="Experiment name, e.g., exp1")
     parser.add_argument(
-        "--workdir", required=True, help="Working directory, e.g., where the output will be stored"
+        "--workdir",
+        required=True,
+        help="Working directory, e.g., where the output will be stored",
     )
     parser.add_argument(
         "--cfg",
@@ -46,7 +48,9 @@ def setup_parser():
         help="Configuration path for the model (e.g., scaling factor), e.g., gradadm_exp.cfg",
     )
     parser.add_argument("--agents_data", required=True, help="Agents data in parquet")
-    parser.add_argument("--interaction_data", required=True, help="Interaction data in parquet")
+    parser.add_argument(
+        "--interaction_data", required=True, help="Interaction data in parquet"
+    )
     parser.add_argument("--target_data", required=True, help="Target data in CSV")
 
     """
@@ -69,7 +73,6 @@ def setup_parser():
         ]
     )
     """
-
     return parser.parse_args()
 
 
@@ -121,7 +124,9 @@ def main(
     )
 
     logger.info("Creating loss function ...")
-    loss_def = get_loss_func(param_model, model_inputs["total_timesteps"], cfg["optimization"])
+    loss_def = get_loss_func(
+        param_model, model_inputs["total_timesteps"], cfg["optimization"]
+    )
     epoch_loss_list = []
     param_values_list = []
     smallest_loss = INITIAL_LOSS
@@ -134,7 +139,9 @@ def main(
 
     for epi in range(num_epochs):
         param_values_all = param_model_forward(
-            param_model, model_inputs["target"], cfg["optimization"]["use_temporal_params"]
+            param_model,
+            model_inputs["target"],
+            cfg["optimization"]["use_temporal_params"],
         )
         predictions = forward_abm(
             param_values_all,
@@ -195,5 +202,10 @@ def main(
 if __name__ == "__main__":
     args = setup_parser()
     main(
-        args.workdir, args.exp, args.cfg, args.agents_data, args.interaction_data, args.target_data
+        args.workdir,
+        args.exp,
+        args.cfg,
+        args.agents_data,
+        args.interaction_data,
+        args.target_data,
     )
