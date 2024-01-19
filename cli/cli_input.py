@@ -127,8 +127,52 @@ def main(
     logger.info("Getting agents ...")
     agents = get_agents(data, sa2, workdir, cfg["vaccine_ratio"], plot_agents=False)
 
+    logger.info("Getting diaries ...")
+    """
+    # debug: read new data:
+    from pickle import load as pickle_load
+    from random import choice as random_choice
+
+    from pandas import merge as pandas_merge
+    from pandas import read_csv as pandas_read_csv
+
+    new_agents = pandas_read_csv("/tmp/syspop_test/Auckland/syspop_base.csv")
+    diary_data = pickle_load(open("/tmp/gradabm_esr/Auckland/diaries.pickle", "rb"))[
+        "diaries"
+    ]
+
+    diary_data = diary_data[[12, "id"]]
+
+    df_melted = diary_data.melt(id_vars="id", var_name="hour", value_name="spec")
+    merged_df = pandas_merge(df_melted, new_agents, on="id", how="left")
+
+    merged_df.loc[merged_df["spec"] == "household", "group"] = merged_df["household"]
+    merged_df.loc[merged_df["spec"] == "supermarket", "group"] = merged_df[
+        "supermarket"
+    ]
+    merged_df.loc[merged_df["spec"] == "restaurant", "group"] = merged_df["restaurant"]
+    merged_df.loc[merged_df["spec"] == "travel", "group"] = merged_df[
+        "travel_mode_work"
+    ]
+    merged_df.loc[merged_df["spec"] == "school", "group"] = merged_df["school"]
+    merged_df.loc[merged_df["spec"] == "company", "group"] = merged_df["company"]
+
+    merged_df["group"] = merged_df["group"].apply(
+        lambda x: random_choice(x.split(",")) if "," in str(x) else x
+    )
+
+    # data = merged_df[["id", "area", "group", "spec", "hour"]]
+    # agents = new_agents
+    """
     logger.info("Creating interactions ...")
-    get_interactions(data, agents, sa2, workdir, cfg["interaction_ratio"])
+    get_interactions(
+        data,
+        agents,
+        sa2,
+        workdir,
+        cfg["interaction_ratio"],
+        max_interaction_for_each_venue=None,
+    )["diaries"]
 
     logger.info("Job done ...")
 

@@ -16,7 +16,7 @@ workdir = "exp/policy_paper"
 input_data = {
     "june_nz_data": "data/measles/june_output",
     "cfg": "data/measles/base/input_exp_vac1.yml",
-    "target_data": "data/measles/base/measles_cases_2019.parquet",
+    "target_data": "data/measles_v2/base/measles_cases_2019.parquet",
     "sa2_dhb_data": "data/common/dhb_and_sa2.parquet",
     "dhb_list": ["Counties Manukau"],
 }

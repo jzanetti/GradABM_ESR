@@ -39,7 +39,9 @@ def write_target(workdir: str, target_path: str or None, dhb_list: list):
     last_row_df_transposed.columns = ["target"]
 
     # Write the last row DataFrame to a CSV file
-    last_row_df_transposed.to_csv(join(workdir, "output.csv"), index=False, header=False)
+    last_row_df_transposed.to_csv(
+        join(workdir, "output.csv"), index=False, header=False
+    )
 
 
 def get_sa2_from_dhb(dhb_sa2_map_data_path, dhb_list):
@@ -135,7 +137,9 @@ def get_interactions(
         logger.info(f"Processing member {proc_member} / {TRAINING_ENS_MEMBERS}")
         sampled_df = []
         for spec_value in list(data["spec"].unique()):
-            logger.info(f"   Processing {spec_value}: {interaction_ratio_cfg[spec_value]} ...")
+            logger.info(
+                f"   Processing {spec_value}: {interaction_ratio_cfg[spec_value]} ..."
+            )
             sampled_df.append(
                 select_rows_by_spec(data, spec_value, interaction_ratio_cfg[spec_value])
             )
@@ -144,9 +148,13 @@ def get_interactions(
         sampled_df = concat(sampled_df, ignore_index=True).drop_duplicates()
 
         if max_interaction_for_each_venue is not None:
-            logger.info(f"   Limiting interactions to {max_interaction_for_each_venue} ...")
+            logger.info(
+                f"   Limiting interactions to {max_interaction_for_each_venue} ..."
+            )
             sampled_df = sampled_df.groupby("group", group_keys=False).apply(
-                lambda x: x.sample(min(len(x), max_interaction_for_each_venue), random_state=1)
+                lambda x: x.sample(
+                    min(len(x), max_interaction_for_each_venue), random_state=1
+                )
             )
 
         # print(sampled_df_filtered)

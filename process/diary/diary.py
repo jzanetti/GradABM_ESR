@@ -55,7 +55,7 @@ def create_diary_single_person(
         if available_activities:
             # Choose an activity based on the probabilities
             available_probabilities = [
-                activities[proc_activity]["prob"]
+                activities[proc_activity]["weight"]
                 for proc_activity in available_activities
             ]
 
@@ -100,15 +100,13 @@ def create_diary(syspop_data: DataFrame, ncpu: int, print_log: bool) -> DataFram
         ncpu (int): Number of CPUs in total
             (this is just for displaying the progress)
     """
-
-    all_diaries = {"id": []}
-
     all_diaries = {proc_hour: [] for proc_hour in range(24)}
+    all_diaries["id"] = []
     total_people = len(syspop_data)
     for i in range(total_people):
         proc_people = syspop_data.iloc[i]
         if print_log:
-            print(
+            logger.info(
                 f"Processing [{i}/{total_people}]x{ncpu}: {100.0 * round(i/total_people, 2)}x{ncpu} %"
             )
 
@@ -122,7 +120,7 @@ def create_diary(syspop_data: DataFrame, ncpu: int, print_log: bool) -> DataFram
             )
         )
 
-        all_diaries["id"].append(i)
+        all_diaries["id"].append(proc_people.id)
 
         for j in output:
             all_diaries[j].append(output[j])
