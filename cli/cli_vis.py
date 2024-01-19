@@ -15,8 +15,8 @@ import argparse
 from os.path import join
 from pickle import load as pickle_load
 
-from input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 from model.diags import plot_diags
+from process.input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 from utils.utils import read_cfg
 
 
@@ -76,7 +76,10 @@ def main(prd_dir, cfg, exp_name):
         for ens_id in range(RANDOM_ENSEMBLES):
             print(model_id, ens_id)
             proc_prd = pickle_load(
-                open(join(prd_dir, exp_name, "output", f"pred_{model_id}_{ens_id}.p"), "rb")
+                open(
+                    join(prd_dir, exp_name, "output", f"pred_{model_id}_{ens_id}.p"),
+                    "rb",
+                )
             )
             outputs.append(proc_prd["output"])
             epoch_losses.append(proc_prd["epoch_loss_list"])

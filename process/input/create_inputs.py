@@ -2,17 +2,68 @@ from glob import glob
 from logging import getLogger
 from os.path import join
 from pickle import dump as pickle_dump
+from pickle import load as pickle_load
+from random import choice as random_choice
 from re import findall as re_findall
 
 from numpy.random import random as numpy_random
 from pandas import DataFrame, concat
 from pandas import merge as pandas_merge
+from pandas import read_csv as pandas_read_csv
 from pandas import read_parquet
 
-from input import AGE_INDEX, ETHNICITY_INDEX, LOC_INDEX, SEX_INDEX, TRAINING_ENS_MEMBERS
-from input.vis import agents_vis
+from process.input import (
+    AGE_INDEX,
+    ETHNICITY_INDEX,
+    LOC_INDEX,
+    SEX_INDEX,
+    TRAINING_ENS_MEMBERS,
+)
+from process.input.vis import agents_vis
 
 logger = getLogger()
+
+
+def get_diary_data(syn_data_path: str, diary_data_path: str) -> DataFrame:
+    """Create agent and diary data
+
+    Args:
+        syn_data_path (str): _description_
+        diary_data_path (str): _description_
+
+    Returns:
+        DataFrame: diary data
+    """
+    agents = pandas_read_csv(syn_data_path)
+    diary_data = pickle_load(open(diary_data_path, "rb"))["diaries"]
+
+    diary_data = diary_data[[12, "id"]]
+    df_melted = diary_data.melt(id_vars="id", var_name="hour", value_name="spec")
+    merged_df = pandas_merge(df_melted, agents, on="id", how="left")
+
+    for proc_key in [
+        "household",
+        "supermarket",
+        "restaurant",
+        "travel",
+        "school",
+        "company",
+    ]:
+        proc_key_to_map = proc_key
+        if proc_key == "travel":
+            proc_key_to_map = "public_transport_trip"
+
+        merged_df.loc[merged_df["spec"] == proc_key, "group"] = merged_df[
+            proc_key_to_map
+        ]
+
+    merged_df["group"] = merged_df["group"].apply(
+        lambda x: random_choice(x.split(",")) if "," in str(x) else x
+    )
+
+    # there might be private travel which does not have a group value
+
+    return merged_df[["id", "group", "spec", "area"]].dropna()
 
 
 def write_target(workdir: str, target_path: str or None, dhb_list: list):
@@ -118,7 +169,6 @@ def select_rows_by_spec(df, spec_value, percentage):
 
 def get_interactions(
     data,
-    agents,
     sa2,
     data_dir,
     interaction_ratio_cfg,
@@ -157,9 +207,6 @@ def get_interactions(
                 )
             )
 
-        # print(sampled_df_filtered)
-        # raise Exception("!2312")
-
         logger.info("   Start interaction merging process ...")
         interactions = pandas_merge(sampled_df, sampled_df, on="group")
 
@@ -175,22 +222,11 @@ def get_interactions(
         interactions = interactions[interactions["spec_x"] != "hospital"]
 
         logger.info("   Mapping location index ...")
-        interactions["spec_x"] = interactions["spec_x"].map(LOC_INDEX)
+        interactions["spec"] = interactions["spec_x"].map(LOC_INDEX)
 
-        interactions = interactions.drop_duplicates()
+        interactions = interactions.drop_duplicates()[["id_x", "id_y", "group", "spec"]]
 
-        for proc_id_name in ["id_x", "id_y"]:
-            merged_df = interactions.merge(agents, left_on=proc_id_name, right_on="id")
-            if proc_id_name == "id_x":
-                columns_to_keep = ["id_y", "spec_x", "row_number", "group"]
-            else:
-                columns_to_keep = ["id_x", "spec_x", "row_number", "group"]
-
-            interactions = merged_df[columns_to_keep]
-            interactions = interactions.rename(columns={"row_number": proc_id_name})
-
-        interactions = interactions.reindex(columns=["id_x", "id_y", "spec_x", "group"])
-        interactions["group"] = interactions["group"].str.extract(r"_(\d+)")
+        logger.info(interactions)
 
         logger.info(f"   Total interactions: {len(interactions)} ...")
 

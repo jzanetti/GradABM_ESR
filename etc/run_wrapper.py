@@ -7,17 +7,18 @@ from cli.cli_input import main as input_main
 from cli.cli_predict import main as predict_main
 from cli.cli_train import main as train_main
 from cli.cli_vis import main as vis_main
-from input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 from model.prep import get_prerun_params
+from process.input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 from utils.utils import read_cfg
 
 workdir = "exp/policy_paper"
 
 input_data = {
-    "june_nz_data": "data/measles/june_output",
-    "cfg": "data/measles/base/input_exp_vac1.yml",
+    "diary_path": "/tmp/gradabm_esr/Auckland/diaries.pickle",
+    "synpop_path": "/tmp/syspop_test/Auckland/syspop_base.csv",
+    "cfg": "data/measles_v2/base/input_exp_vac.yml",
     "target_data": "data/measles_v2/base/measles_cases_2019.parquet",
-    "sa2_dhb_data": "data/common/dhb_and_sa2.parquet",
+    "sa2_dhb_map_path": "data/common/dhb_and_sa2.parquet",
     "dhb_list": ["Counties Manukau"],
 }
 
@@ -27,7 +28,7 @@ prd_job_name = "base_exp"
 
 run_input_main = True
 run_prerun = False
-run_model_main = True
+run_model_main = False
 run_predict_main = False
 run_vis_main = False
 remove_all_old_runs = False
@@ -39,13 +40,13 @@ if remove_all_old_runs:
 if run_input_main:
     input_main(
         join(workdir, "input"),
-        input_data["cfg"],
-        input_data["june_nz_data"],
+        input_data["diary_path"],
+        input_data["synpop_path"],
+        input_data["sa2_dhb_map_path"],
         input_data["target_data"],
+        input_data["cfg"],
         input_data["dhb_list"],
-        input_data["sa2_dhb_data"],
     )
-
 
 if run_prerun:
     all_lost = {}

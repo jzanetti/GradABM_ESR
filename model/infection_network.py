@@ -14,8 +14,8 @@ from torch import tensor as torch_tensor
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
-from input import LOC_INDEX
 from model import DEVICE, TORCH_SEED_NUM
+from process.input import LOC_INDEX
 from utils.utils import create_random_seed
 
 logger = getLogger()
@@ -30,9 +30,9 @@ def school_closure(infected_idx, edge_attr, school_closure_cfg):
     infected_idx_index = numpy_where(infected_idx.cpu().detach().numpy() == True)[0]
 
     if len(infected_idx_index) > 0:
-        school_index = numpy_where(edge_attr[0, :].cpu().detach().numpy() == LOC_INDEX["school"])[
-            0
-        ]
+        school_index = numpy_where(
+            edge_attr[0, :].cpu().detach().numpy() == LOC_INDEX["school"]
+        )[0]
 
         overlap_index = numpy_intersect1d(infected_idx_index, school_index)
         schools_to_shutdown = edge_attr[2, :][overlap_index].unique().cpu().detach()
@@ -41,7 +41,9 @@ def school_closure(infected_idx, edge_attr, school_closure_cfg):
             numpy_isin(edge_attr[2].cpu().detach().numpy(), schools_to_shutdown)
         )[0]
         schools_to_shutdown_indices = numpy_intersect1d(school_index, potential_indices)
-        school_closure_sf[schools_to_shutdown_indices] *= school_closure_cfg["scaling_factor"]
+        school_closure_sf[schools_to_shutdown_indices] *= school_closure_cfg[
+            "scaling_factor"
+        ]
 
     return torch_tensor(school_closure_sf).to(DEVICE)
 
@@ -62,7 +64,11 @@ def infected_case_isolation(
     Returns:
         _type_: Scaling factor for infected case
     """
-    if (isolation_compliance_rate is None) or (contact_tracing_coverage is None) or (t == 0):
+    if (
+        (isolation_compliance_rate is None)
+        or (contact_tracing_coverage is None)
+        or (t == 0)
+    ):
         return torch_ones_like(infected_idx)
 
     # infected agents (0.0: uninfected; 1.0: infected)
@@ -76,15 +82,23 @@ def infected_case_isolation(
     if infected_agents_length < min_cases:
         return torch_ones_like(infected_agents)
 
-    identified_infected_agents_length = infected_agents_length * contact_tracing_coverage
-    isolated_agents_length = int(isolation_compliance_rate * identified_infected_agents_length)
+    identified_infected_agents_length = (
+        infected_agents_length * contact_tracing_coverage
+    )
+    isolated_agents_length = int(
+        isolation_compliance_rate * identified_infected_agents_length
+    )
 
     if TORCH_SEED_NUM is not None:
         torch_seed(TORCH_SEED_NUM["isolation_policy"])
 
-    isolated_agents_index = torch_randperm(infected_agents_length)[:isolated_agents_length]
+    isolated_agents_index = torch_randperm(infected_agents_length)[
+        :isolated_agents_length
+    ]
     isolated_mask = torch_zeros_like(infected_agents)
-    isolated_mask[infected_agents_index[isolated_agents_index]] = 1.0 - isolation_intensity
+    isolated_mask[infected_agents_index[isolated_agents_index]] = (
+        1.0 - isolation_intensity
+    )
 
     isolated_sf = 1.0 - isolated_mask
 
@@ -179,7 +193,9 @@ def lam(
     edge_network_numbers = edge_attr[
         0, :
     ]  # to account for the fact that mean interactions start at 4th position of x
-    I_bar = torch_gather(x_i[:, 7:30], 1, edge_network_numbers.view(-1, 1).long()).view(-1)
+    I_bar = torch_gather(x_i[:, 7:30], 1, edge_network_numbers.view(-1, 1).long()).view(
+        -1
+    )
 
     if perturbation_flag:
         R = random_uniform(0.7, 1.3)
@@ -348,7 +364,9 @@ class InfectionNetwork(MessagePassing):
 
         plt.figure(figsize=(10, 8))
         logger.info("   - Creating spring_layout")
-        pos = spring_layout(subgraph)  # Positions the nodes using the spring layout algorithm
+        pos = spring_layout(
+            subgraph
+        )  # Positions the nodes using the spring layout algorithm
 
         logger.info("   - Creating visualization")
         plt.figure(figsize=(10, 8))

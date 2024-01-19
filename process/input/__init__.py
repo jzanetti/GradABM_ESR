@@ -1,13 +1,10 @@
 LOC_INDEX = {
     "household": 0,
-    "city_transport": 1,
-    "inter_city_transport": 2,
-    "gym": 3,
-    "grocery": 4,
-    "pub": 5,
-    "cinema": 6,
-    "school": 7,
-    "company": 8,
+    "supermarket": 1,
+    "company": 2,
+    "school": 3,
+    "travel": 4,
+    "restaurant": 5,
 }
 
 AGE_INDEX = {

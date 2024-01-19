@@ -20,7 +20,9 @@ from torch.cuda import (
 
 def clear_cuda_memory(print_memory_usage: bool = False):
     device = current_device()
-    available_memory_bytes = get_device_properties(device).total_memory - memory_allocated(device)
+    available_memory_bytes = get_device_properties(
+        device
+    ).total_memory - memory_allocated(device)
     available_memory = available_memory_bytes / 1024**3
 
     if print_memory_usage:
@@ -63,7 +65,9 @@ def setup_logging(workdir: str = "/tmp", start_utc: datetime = datetime.utcnow()
     Returns:
         object: a logging object
     """
-    formatter = Formatter("%(asctime)s - %(name)s.%(lineno)d - %(levelname)s - %(message)s")
+    formatter = Formatter(
+        "%(asctime)s - %(name)s.%(lineno)d - %(levelname)s - %(message)s"
+    )
     ch = StreamHandler()
     ch.setLevel(INFO)
     ch.setFormatter(formatter)

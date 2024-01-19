@@ -12,8 +12,8 @@ from torch import tensor as torch_tensor
 from torch import vstack as torch_vstack
 from torch.utils.data.dataloader import DataLoader
 
-from input import LOC_INDEX
 from model import DEVICE
+from process.input import LOC_INDEX
 
 
 class SeqData(torch.utils.data.Dataset):
@@ -112,15 +112,21 @@ def agent_interaction_wrapper(
     agents_mean_interactions_mu = 0 * torch_ones(num_agents, len(LOC_INDEX)).to(DEVICE)
     for network_index in network_type_dict_inv:
         proc_interaction_mu = (
-            torch_tensor(agents_mean_interaction_cfg[network_type_dict_inv[network_index]]["mu"])
+            torch_tensor(
+                agents_mean_interaction_cfg[network_type_dict_inv[network_index]]["mu"]
+            )
             .float()
             .to(DEVICE)
         )
 
         agents_mean_interactions_mu[:, network_index] = proc_interaction_mu
 
-    agents_mean_interactions_mu_split = list(torch_split(agents_mean_interactions_mu, 1, dim=1))
-    agents_mean_interactions_mu_split = [a.view(-1) for a in agents_mean_interactions_mu_split]
+    agents_mean_interactions_mu_split = list(
+        torch_split(agents_mean_interactions_mu, 1, dim=1)
+    )
+    agents_mean_interactions_mu_split = [
+        a.view(-1) for a in agents_mean_interactions_mu_split
+    ]
 
     return {
         "agents_mean_interactions_mu": agents_mean_interactions_mu,
@@ -182,14 +188,20 @@ def create_interactions(
     # ----------------------------
     if interaction_graph_path.endswith("csv"):
         create_bidirection = True
-        edges_mean_interaction_cfg = pandas_read_csv(interaction_graph_path, header=None)
+        edges_mean_interaction_cfg = pandas_read_csv(
+            interaction_graph_path, header=None
+        )
     if interaction_graph_path.endswith("parquet"):
         create_bidirection = False
         edges_mean_interaction_cfg = pandas_read_parquet(interaction_graph_path)
 
-    edges_mean_interaction_cfg = edges_mean_interaction_cfg.sample(frac=interaction_ratio)
+    edges_mean_interaction_cfg = edges_mean_interaction_cfg.sample(
+        frac=interaction_ratio
+    )
 
-    counts_df = edges_mean_interaction_cfg.groupby("id_x")["id_y"].nunique().reset_index()
+    counts_df = (
+        edges_mean_interaction_cfg.groupby("id_x")["id_y"].nunique().reset_index()
+    )
     counts_df.columns = ["id_x", "count_of_id_y"]
 
     agents_mean_interactions_bn = {}
@@ -203,7 +215,9 @@ def create_interactions(
     )
 
     return {
-        "agents_mean_interactions_mu": agent_interaction_data["agents_mean_interactions_mu"],
+        "agents_mean_interactions_mu": agent_interaction_data[
+            "agents_mean_interactions_mu"
+        ],
         "agents_mean_interactions_mu_split": agent_interaction_data[
             "agents_mean_interactions_mu_split"
         ],
@@ -232,11 +246,15 @@ def init_interaction_graph(
     """
 
     interaction_graph_cfg = (
-        interaction_graph_cfg.apply(pandas_to_numeric, errors="coerce").values[1:, :].astype(int)
+        interaction_graph_cfg.apply(pandas_to_numeric, errors="coerce")
+        .values[1:, :]
+        .astype(int)
     )
 
     if create_bidirection:
-        random_network_edgelist_forward = torch_tensor(interaction_graph_cfg[:, 0:3]).t().long()
+        random_network_edgelist_forward = (
+            torch_tensor(interaction_graph_cfg[:, 0:3]).t().long()
+        )
         random_network_edgelist_backward = torch_vstack(
             (
                 random_network_edgelist_forward[1, :],
@@ -257,7 +275,8 @@ def init_interaction_graph(
     random_network_edgeattr_venue = random_network_edge_all[3, :]
 
     random_network_edgeattr_B_n = [
-        agents_mean_interactions_bn[key] for key in random_network_edgeattr_type.tolist()
+        agents_mean_interactions_bn[key]
+        for key in random_network_edgeattr_type.tolist()
     ]
 
     random_network_edgeattr = torch_vstack(

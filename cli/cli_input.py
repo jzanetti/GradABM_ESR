@@ -13,6 +13,7 @@ from os.path import exists
 
 from process.input.create_inputs import (
     get_agents,
+    get_diary_data,
     get_interactions,
     get_sa2_from_dhb,
     read_june_nz_inputs,
@@ -37,32 +38,39 @@ def setup_parser():
     )
 
     parser.add_argument(
-        "--june_nz_data",
-        required=True,
-        help="June-NZ data input",
-    )
-
-    parser.add_argument(
         "--workdir",
         required=True,
         help="Working directory, e.g., where the output will be stored",
     )
+
     parser.add_argument(
-        "--cfg", required=True, help="Configuration path for the input ..."
+        "--diary_path",
+        required=True,
+        help="Diary data path",
     )
 
     parser.add_argument(
-        "--sa2_dhb_data",
+        "--synpop_path",
+        required=True,
+        help="Synthetic population data path",
+    )
+
+    parser.add_argument(
+        "--sa2_dhb_map_path",
         required=False,
         default=None,
-        help="SA2 to DHB map",
+        help="Data path for SA2 to DHB map",
     )
 
     parser.add_argument(
-        "--target_data",
+        "--target_path",
         required=False,
         default=None,
         help="Target data path",
+    )
+
+    parser.add_argument(
+        "--cfg_path", required=True, help="Configuration path for the input ..."
     )
 
     parser.add_argument(
@@ -98,14 +106,25 @@ def setup_parser():
 
 
 def main(
-    workdir,
-    cfg,
-    june_nz_data,
-    target_data,
-    dhb_list,
-    sa2_dhb_data,
+    workdir: str,
+    diary_path: str,
+    synpop_path: str,
+    sa2_dhb_map_path: str,
+    target_path: str,
+    cfg_path: str,
+    dhb_list: list,
 ):
-    """Run June model for New Zealand"""
+    """Run June model for New Zealand
+
+    Args:
+        workdir (str): Working directory
+        diary_path (str): _description_
+        synpop_path (str): _description_
+        sa2_dhb_map_path (str): _description_
+        target_path (str): _description_
+        cfg_path (str): _description_
+        dhb_list (list): _description_
+    """
 
     if not exists(workdir):
         makedirs(workdir)
@@ -113,66 +132,25 @@ def main(
     logger = setup_logging(workdir)
 
     logger.info("Reading configuration ...")
-    cfg = read_cfg(cfg)
+    cfg = read_cfg(cfg_path)
 
     logger.info("Creating target ...")
-    write_target(workdir, target_data, dhb_list)
-
-    logger.info("Getting JUNE-NZ data as input ...")
-    data = read_june_nz_inputs(june_nz_data)
+    write_target(workdir, target_path, dhb_list)
 
     logger.info("Getting SA2 from DHB")
-    sa2 = get_sa2_from_dhb(sa2_dhb_data, dhb_list)
+    sa2 = get_sa2_from_dhb(sa2_dhb_map_path, dhb_list)
 
-    logger.info("Getting agents ...")
-    agents = get_agents(data, sa2, workdir, cfg["vaccine_ratio"], plot_agents=False)
+    logger.info("Getting agents and diget_agent_and_diary_dataaries ...")
+    diary = get_diary_data(synpop_path, diary_path)
 
-    logger.info("Getting diaries ...")
-    """
-    # debug: read new data:
-    from pickle import load as pickle_load
-    from random import choice as random_choice
-
-    from pandas import merge as pandas_merge
-    from pandas import read_csv as pandas_read_csv
-
-    new_agents = pandas_read_csv("/tmp/syspop_test/Auckland/syspop_base.csv")
-    diary_data = pickle_load(open("/tmp/gradabm_esr/Auckland/diaries.pickle", "rb"))[
-        "diaries"
-    ]
-
-    diary_data = diary_data[[12, "id"]]
-
-    df_melted = diary_data.melt(id_vars="id", var_name="hour", value_name="spec")
-    merged_df = pandas_merge(df_melted, new_agents, on="id", how="left")
-
-    merged_df.loc[merged_df["spec"] == "household", "group"] = merged_df["household"]
-    merged_df.loc[merged_df["spec"] == "supermarket", "group"] = merged_df[
-        "supermarket"
-    ]
-    merged_df.loc[merged_df["spec"] == "restaurant", "group"] = merged_df["restaurant"]
-    merged_df.loc[merged_df["spec"] == "travel", "group"] = merged_df[
-        "travel_mode_work"
-    ]
-    merged_df.loc[merged_df["spec"] == "school", "group"] = merged_df["school"]
-    merged_df.loc[merged_df["spec"] == "company", "group"] = merged_df["company"]
-
-    merged_df["group"] = merged_df["group"].apply(
-        lambda x: random_choice(x.split(",")) if "," in str(x) else x
-    )
-
-    # data = merged_df[["id", "area", "group", "spec", "hour"]]
-    # agents = new_agents
-    """
     logger.info("Creating interactions ...")
     get_interactions(
-        data,
-        agents,
+        diary,
         sa2,
         workdir,
         cfg["interaction_ratio"],
         max_interaction_for_each_venue=None,
-    )["diaries"]
+    )
 
     logger.info("Job done ...")
 
@@ -181,9 +159,10 @@ if __name__ == "__main__":
     args = setup_parser()
     main(
         args.workdir,
-        args.cfg,
-        args.june_nz_data,
-        args.target_data,
+        args.diary_path,
+        args.synpop_path,
+        args.sa2_dhb_map_path,
+        args.target_path,
+        args.cfg_path,
         args.dhb_list,
-        args.sa2_dhb_data,
     )

@@ -1,6 +1,6 @@
 from matplotlib.pyplot import axis, close, figure, pie, savefig, tight_layout, title
 
-from input import AGE_INDEX, ETHNICITY_INDEX, SEX_INDEX
+from process.input import AGE_INDEX, ETHNICITY_INDEX, SEX_INDEX
 
 
 def agents_vis(agents, sa2):
@@ -10,7 +10,9 @@ def agents_vis(agents, sa2):
         agents_to_plot = agents
 
     for column_name in ["age", "ethnicity", "sex"]:
-        value_counts = agents_to_plot[column_name].value_counts() / len(agents_to_plot) * 100
+        value_counts = (
+            agents_to_plot[column_name].value_counts() / len(agents_to_plot) * 100
+        )
         if column_name == "age":
             label_dict = {value: key for key, value in AGE_INDEX.items()}
             agents_to_plot["modified_age"] = agents_to_plot["age"].replace(
@@ -20,7 +22,9 @@ def agents_vis(agents, sa2):
             label_dict["0-1"] = "0-20"
             label_dict[6] = "61 and above"
             value_counts = (
-                agents_to_plot["modified_age"].value_counts() / len(agents_to_plot) * 100
+                agents_to_plot["modified_age"].value_counts()
+                / len(agents_to_plot)
+                * 100
             )
 
         elif column_name == "ethnicity":
