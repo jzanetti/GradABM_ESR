@@ -2,7 +2,7 @@ from os import makedirs
 from os.path import exists, join
 from pickle import dump as pickle_dump
 
-from model import REMOVE_WARM_UP_TIMESTEPS
+from process.model import REMOVE_WARM_UP_TIMESTEPS
 
 
 def write_output(output, epoch_loss_list, workdir, exp_name, model_id, ens_id):

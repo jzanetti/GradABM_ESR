@@ -15,8 +15,8 @@ from pandas import read_parquet
 from process.input import (
     AGE_INDEX,
     ETHNICITY_INDEX,
+    GENDER_INDEX,
     LOC_INDEX,
-    SEX_INDEX,
     TRAINING_ENS_MEMBERS,
 )
 from process.input.vis import agents_vis
@@ -37,7 +37,7 @@ def get_diary_data(syn_data_path: str, diary_data_path: str) -> DataFrame:
     agents = pandas_read_csv(syn_data_path)
     diary_data = pickle_load(open(diary_data_path, "rb"))["diaries"]
 
-    diary_data = diary_data[[12, "id"]]
+    # diary_data = diary_data[[12, "id"]]
     df_melted = diary_data.melt(id_vars="id", var_name="hour", value_name="spec")
     merged_df = pandas_merge(df_melted, agents, on="id", how="left")
 
@@ -62,8 +62,11 @@ def get_diary_data(syn_data_path: str, diary_data_path: str) -> DataFrame:
     )
 
     # there might be private travel which does not have a group value
-
-    return merged_df[["id", "group", "spec", "area"]].dropna()
+    x = 3
+    return {
+        "agents": agents,
+        "interaction": merged_df[["id", "group", "spec", "area"]].dropna(),
+    }
 
 
 def write_target(workdir: str, target_path: str or None, dhb_list: list):
@@ -167,31 +170,93 @@ def select_rows_by_spec(df, spec_value, percentage):
     return selected_rows
 
 
-def get_interactions(
-    data,
-    sa2,
-    data_dir,
-    interaction_ratio_cfg,
+def _agent_and_interaction_preproc(
+    data: dict, vaccine_ratio_cfg: dict, sa2: list
+) -> dict:
+    """Obtain agent and interaction data:
+
+    Args:
+        data (dict): Input data
+        vaccine_ratio_cfg (dict): Vaccine ratio
+        sa2 (list): SA2 to be processed
+
+    Returns:
+        dict: processed agent and interaction
+    """
+
+    def _assign_vaccination(ethnicity: str):
+        """Assign vaccination status
+
+        Args:
+            ethnicity (str): ethnicity such as Maori, European, Asian etc.
+
+        Returns:
+            _type_: _description_
+        """
+        return "yes" if numpy_random() < vaccine_ratio_cfg[ethnicity] else "no"
+
+    interaction_data = data["interaction"]
+    agents_data = data["agents"]
+    agents_data["vaccine"] = agents_data["ethnicity"].apply(_assign_vaccination)
+
+    if sa2 is not None:
+        interaction_data = interaction_data[interaction_data["area"].isin(sa2)]
+        agents_data = agents_data[agents_data["area"].isin(sa2)]
+
+    agents_data = agents_data.reset_index()
+    agents_data["row_number"] = agents_data.index
+
+    interaction_data = interaction_data[["id", "group", "spec"]]
+    interaction_data = pandas_merge(
+        interaction_data, agents_data[["id", "row_number"]], on="id", how="left"
+    )
+    interaction_data["id"] = interaction_data["row_number"]
+    interaction_data = interaction_data.drop("row_number", axis=1)
+
+    agents_data["id"] = agents_data["row_number"]
+    agents_data = agents_data.drop(["index", "row_number"], axis=1)
+
+    return {"agents": agents_data, "interaction": interaction_data}
+
+
+def write_agent_and_interactions(
+    data: dict,
+    sa2: list,
+    data_dir: str,
+    interaction_ratio_cfg: dict,
+    vaccine_ratio_cfg: dict,
     max_interaction_for_each_venue: int or None = None,
 ):
-    if sa2 is not None:
-        data = data[data["area"].isin(sa2)]
+    """Write out agents and agent interactions
 
-    data = data[["id", "group", "spec"]]
+    Args:
+        data (dict): _description_
+        sa2 (list): _description_
+        data_dir (str): _description_
+        interaction_ratio_cfg (dict): _description_
+        vaccine_ratio_cfg (dict): _description_
+        max_interaction_for_each_venue (intorNone, optional): _description_. Defaults to None.
+    """
+    data = _agent_and_interaction_preproc(data, vaccine_ratio_cfg, sa2)
 
-    id_num = len(data["id"].unique())
+    interaction_data = data["interaction"]
+    agents_data = data["agents"]
+
+    id_num = len(interaction_data["id"].unique())
 
     logger.info(f"Total population: {id_num}")
 
     for proc_member in range(TRAINING_ENS_MEMBERS):
         logger.info(f"Processing member {proc_member} / {TRAINING_ENS_MEMBERS}")
         sampled_df = []
-        for spec_value in list(data["spec"].unique()):
+        for spec_value in list(interaction_data["spec"].unique()):
             logger.info(
                 f"   Processing {spec_value}: {interaction_ratio_cfg[spec_value]} ..."
             )
             sampled_df.append(
-                select_rows_by_spec(data, spec_value, interaction_ratio_cfg[spec_value])
+                select_rows_by_spec(
+                    interaction_data, spec_value, interaction_ratio_cfg[spec_value]
+                )
             )
 
         logger.info(f"   Combining all interaction inputs ...")
@@ -212,8 +277,6 @@ def get_interactions(
 
         logger.info("   Filtering out self interactions ...")
         interactions = interactions[interactions["id_x"] != interactions["id_y"]]
-        # mask = interactions["id_x"] != interactions["id_y"]
-        # interactions = interactions[mask]
 
         logger.info("   Selecting subset of columns ...")
         interactions = interactions[["id_x", "id_y", "spec_x", "group"]]
@@ -224,13 +287,22 @@ def get_interactions(
         logger.info("   Mapping location index ...")
         interactions["spec"] = interactions["spec_x"].map(LOC_INDEX)
 
-        interactions = interactions.drop_duplicates()[["id_x", "id_y", "group", "spec"]]
+        interactions = interactions[["id_x", "id_y", "group", "spec"]].drop_duplicates()
 
         logger.info(interactions)
 
         logger.info(f"   Total interactions: {len(interactions)} ...")
 
+        for proc_loc_type in LOC_INDEX:
+            proc_occurrences = len(
+                interactions[interactions["spec"] == LOC_INDEX[proc_loc_type]]
+            )
+            logger.info(f"    - {proc_loc_type}: {proc_occurrences}")
+
         logger.info(f"   Writing outputs ...")
         interactions.to_parquet(
             join(data_dir, f"interaction_graph_cfg_member_{proc_member}.parquet")
         )
+
+    # write out agents
+    agents_data.to_parquet(join(data_dir, f"agents.parquet"))

@@ -41,7 +41,7 @@ from shapely.wkt import loads
 from torch import load as torch_load
 from torch import save as torch_save
 
-from model import STAGE_INDEX
+from process.model import STAGE_INDEX
 
 logger = getLogger()
 
@@ -75,7 +75,9 @@ def save_outputs(param_model, workdir):
     torch_save(param_model["param_model"], join(workdir, "param_model.model"))
     pickle_dump(param_model["params"], open(join(workdir, "params.p"), "wb"))
     pickle_dump(param_model["output_info"], open(join(workdir, "output_info.p"), "wb"))
-    pickle_dump(param_model["all_interactions"], open(join(workdir, "all_interactions.p"), "wb"))
+    pickle_dump(
+        param_model["all_interactions"], open(join(workdir, "all_interactions.p"), "wb")
+    )
     # pickle_dump(param_model["agents"], open(join(workdir, "output_agents.p"), "wb"))
 
 
@@ -98,7 +100,9 @@ def obtain_sa2_info(sa2, target_areas, target_attrs):
     outputs = []
     for sa2_code in target_areas:
         try:
-            row = sa2[sa2["SA22018_V1_00"] == sa2_code].iloc[0]  # Get the corresponding row from y
+            row = sa2[sa2["SA22018_V1_00"] == sa2_code].iloc[
+                0
+            ]  # Get the corresponding row from y
         except IndexError:
             continue
         polygon = loads(row["WKT"])  # Parse the WKT to a polygon
@@ -131,8 +135,12 @@ def plot_diags(
         susceptible_counts = count_nonzero(
             output["all_records"] == STAGE_INDEX["susceptible"], axis=1
         )
-        exposed_counts = count_nonzero(output["all_records"] == STAGE_INDEX["exposed"], axis=1)
-        infected_counts = count_nonzero(output["all_records"] == STAGE_INDEX["infected"], axis=1)
+        exposed_counts = count_nonzero(
+            output["all_records"] == STAGE_INDEX["exposed"], axis=1
+        )
+        infected_counts = count_nonzero(
+            output["all_records"] == STAGE_INDEX["infected"], axis=1
+        )
         recovered_or_death_counts = count_nonzero(
             output["all_records"] == STAGE_INDEX["recovered_or_death"], axis=1
         )
@@ -166,7 +174,9 @@ def plot_diags(
             makedirs(tmp_dir)
 
         if vis_cfg["agents_map"]["pop_based_interpolation"]["enable"]:
-            pop = read_population(vis_cfg["agents_map"]["pop_based_interpolation"]["pop_path"])
+            pop = read_population(
+                vis_cfg["agents_map"]["pop_based_interpolation"]["pop_path"]
+            )
 
         sa2 = read_csv(vis_cfg["agents_map"]["sa2_path"])
         sa2 = sa2.loc[sa2["LAND_AREA_SQ_KM"] > 0]
@@ -183,12 +193,12 @@ def plot_diags(
         """
         sa2 = GeoDataFrame(sa2, geometry=GeoSeries.from_wkt(sa2["WKT"]))
         sa2 = sa2.cx[
-            vis_cfg["agents_map"]["domain"]["min_lon"] : vis_cfg["agents_map"]["domain"][
-                "max_lon"
-            ],
-            vis_cfg["agents_map"]["domain"]["min_lat"] : vis_cfg["agents_map"]["domain"][
-                "max_lat"
-            ],
+            vis_cfg["agents_map"]["domain"]["min_lon"] : vis_cfg["agents_map"][
+                "domain"
+            ]["max_lon"],
+            vis_cfg["agents_map"]["domain"]["min_lat"] : vis_cfg["agents_map"][
+                "domain"
+            ]["max_lat"],
         ]
         proc_latlons = []
         proc_attrs = []
@@ -201,7 +211,9 @@ def plot_diags(
                     continue
 
                 proc_latlon = obtain_sa2_info(
-                    sa2, array(output["agents_area"])[proc_index], output["agents_ethnicity"]
+                    sa2,
+                    array(output["agents_area"])[proc_index],
+                    output["agents_ethnicity"],
                 )
                 proc_attr = array(output["agents_ethnicity"])[proc_index]
 
@@ -240,7 +252,9 @@ def plot_diags(
                 sa2["agents_occurrences"] = sa2["agents_occurrences"].fillna(0.0)
                 # sa2["agents_occurrences"] = sa2["agents_occurrences"] / len(outputs)
 
-                mask = (sa2["agents_occurrences"] > 0) & (sa2["agents_occurrences"] < 1.0)
+                mask = (sa2["agents_occurrences"] > 0) & (
+                    sa2["agents_occurrences"] < 1.0
+                )
                 sa2.loc[mask, "agents_occurrences"] = 1.0
 
                 sa2.loc[sa2["agents_occurrences"] == 0.0, "agents_occurrences"] = NaN
@@ -248,9 +262,13 @@ def plot_diags(
                 if vis_cfg["agents_map"]["pop_based_interpolation"]["enable"]:
                     sa2["representative_point"] = sa2.representative_point()
                     if "population" not in sa2.columns:
-                        sa2 = sa2.merge(pop, left_on="SA22018_V1_00", right_on="area", how="left")
+                        sa2 = sa2.merge(
+                            pop, left_on="SA22018_V1_00", right_on="area", how="left"
+                        )
 
-                    for index, row in sa2[sa2["agents_occurrences"].isnull()].iterrows():
+                    for index, row in sa2[
+                        sa2["agents_occurrences"].isnull()
+                    ].iterrows():
                         target_geometry = row["representative_point"]
 
                         # Find the nearest geometry and index
@@ -263,7 +281,12 @@ def plot_diags(
                         nearest_index.remove(index)
                         nearest_geometry = sa2.loc[
                             nearest_index,
-                            ["SA22018_V1_00", "agents_occurrences", "geometry", "population"],
+                            [
+                                "SA22018_V1_00",
+                                "agents_occurrences",
+                                "geometry",
+                                "population",
+                            ],
                         ]
 
                         # if not nearest_geometry["agents_occurrences"].isna().all():
@@ -275,7 +298,9 @@ def plot_diags(
                                 nearest_geometry["agents_occurrences"],
                             ),
                         )
-                        weighted_avg = ma_average(ma, weights=nearest_geometry["population"])
+                        weighted_avg = ma_average(
+                            ma, weights=nearest_geometry["population"]
+                        )
 
                         sa2.at[index, "agents_occurrences"] = weighted_avg
 
@@ -301,7 +326,9 @@ def plot_diags(
 
                 if vis_cfg["agents_map"]["highlight_sa2"] is not None:
                     highlighted_areas = sa2[
-                        sa2["SA22018_V1_00"].isin(vis_cfg["agents_map"]["highlight_sa2"])
+                        sa2["SA22018_V1_00"].isin(
+                            vis_cfg["agents_map"]["highlight_sa2"]
+                        )
                     ]
                     highlighted_areas.plot(
                         ax=ax,
@@ -316,7 +343,9 @@ def plot_diags(
                 close()
 
         png_files = [f for f in listdir(tmp_dir) if f.endswith(".png")]
-        png_files = sorted(png_files, key=lambda item: int(item.split("_")[1].split(".")[0]))
+        png_files = sorted(
+            png_files, key=lambda item: int(item.split("_")[1].split(".")[0])
+        )
         images = []
 
         # Open each PNG image and append to the list

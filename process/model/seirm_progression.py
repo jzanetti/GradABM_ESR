@@ -27,8 +27,8 @@ from torch import where as torch_where
 from torch import zeros as torch_zeros
 from torch import zeros_like as torch_zeros_like
 
-from model import SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
-from model.disease_progression import DiseaseProgression
+from process.model import SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
+from process.model.disease_progression import DiseaseProgression
 from utils.utils import create_random_seed
 
 
@@ -53,9 +53,9 @@ class SEIRMProgression(DiseaseProgression):
         device,
     ):
         # Add random infected:
-        random_infected_p = (random_percentage / 100.0) * torch_ones((self.num_agents, 1)).to(
-            device
-        )
+        random_infected_p = (random_percentage / 100.0) * torch_ones(
+            (self.num_agents, 1)
+        ).to(device)
         random_infected_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
         p = torch_hstack((random_infected_p, 1 - random_infected_p))
         cat_logits = torch_log(p + 1e-9)
@@ -68,19 +68,23 @@ class SEIRMProgression(DiseaseProgression):
                 logits=cat_logits, tau=1, dim=1, hard=True
             )[:, 0]
 
-            if not isnan(agents_stages_with_random_infected.cpu().clone().detach().numpy()).any():
+            if not isnan(
+                agents_stages_with_random_infected.cpu().clone().detach().numpy()
+            ).any():
                 break
 
         agents_stages_with_random_infected *= STAGE_INDEX["infected"]
         agents_stages = agents_stages + agents_stages_with_random_infected
         # print(t, agents_stages_with_random_infected.tolist().count(2))
         # Updated infected time:
-        agents_infected_time[agents_stages_with_random_infected == STAGE_INDEX["infected"]] = t
+        agents_infected_time[
+            agents_stages_with_random_infected == STAGE_INDEX["infected"]
+        ] = t
 
         # Updated init_agents_next_stage_time:
-        agents_next_stage_times[agents_stages_with_random_infected == STAGE_INDEX["infected"]] = (
-            t + infected_to_recovered_time
-        )
+        agents_next_stage_times[
+            agents_stages_with_random_infected == STAGE_INDEX["infected"]
+        ] = (t + infected_to_recovered_time)
 
         return agents_stages, agents_infected_time, agents_next_stage_times
 
@@ -106,7 +110,9 @@ class SEIRMProgression(DiseaseProgression):
             if TORCH_SEED_NUM is not None:
                 torch_seed(TORCH_SEED_NUM["initial_infected"])
 
-            agents_stages = F.gumbel_softmax(logits=cat_logits, tau=1, hard=True, dim=1)[:, 0]
+            agents_stages = F.gumbel_softmax(
+                logits=cat_logits, tau=1, hard=True, dim=1
+            )[:, 0]
             agents_stages *= STAGE_INDEX["infected"]
 
         return agents_stages.to(device)
@@ -132,23 +138,29 @@ class SEIRMProgression(DiseaseProgression):
             # Randomly choose values from the options array based on the given probabilities.
             random_values = numpy_choice(
                 options,
-                size=len(agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]]),
+                size=len(
+                    agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]]
+                ),
                 p=probabilities,
             )
-            agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = torch_tensor(
-                random_values, dtype=torch_long
-            ).to(device)
+            agents_next_stage_times[
+                agents_stages == STAGE_INDEX["infected"]
+            ] = torch_tensor(random_values, dtype=torch_long).to(device)
         else:
             agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = (
                 0 + infected_to_recovered_or_dead_time
             )
         return agents_next_stage_times
 
-    def update_initial_times(self, learnable_params, agents_stages, agents_next_stage_times):
+    def update_initial_times(
+        self, learnable_params, agents_stages, agents_next_stage_times
+    ):
         """this is for the abm constructor"""
         infected_to_recovered_time = learnable_params["infected_to_recovered_time"]
         exposed_to_infected_time = learnable_params["exposed_to_infected_time"]
-        agents_next_stage_times[agents_stages == STAGE_INDEX["exposed"]] = exposed_to_infected_time
+        agents_next_stage_times[
+            agents_stages == STAGE_INDEX["exposed"]
+        ] = exposed_to_infected_time
         agents_next_stage_times[
             agents_stages == STAGE_INDEX["infected"]
         ] = infected_to_recovered_time
@@ -201,7 +213,14 @@ class SEIRMProgression(DiseaseProgression):
         def _randomly_assign_death_people(recovered_or_dead_today, death_total_today):
             recovered_or_dead_today_array = array(recovered_or_dead_today.tolist())
             indices_ones = where(recovered_or_dead_today_array == 1)[0]
-            n = int(max([0.0, min(int(round(death_total_today.item(), 0)), len(indices_ones))]))
+            n = int(
+                max(
+                    [
+                        0.0,
+                        min(int(round(death_total_today.item(), 0)), len(indices_ones)),
+                    ]
+                )
+            )
 
             death_indices = choice(indices_ones, n, replace=False)
 
@@ -213,15 +232,21 @@ class SEIRMProgression(DiseaseProgression):
 
         if after_infected_index.sum() == 0:
             after_infected_index = torch_where(
-                after_infected_index == 0.0, torch_tensor(SMALL_VALUE), after_infected_index
+                after_infected_index == 0.0,
+                torch_tensor(SMALL_VALUE),
+                after_infected_index,
             )
 
-        potential_infected = (current_stages * after_infected_index) / STAGE_INDEX["infected"]
+        potential_infected = (current_stages * after_infected_index) / STAGE_INDEX[
+            "infected"
+        ]
 
         # print(vaccine_efficiency_symptom)
         infected_today = vaccine_efficiency_symptom * torch_sum(potential_infected)
 
-        infected_indices = _randomly_assign_death_people(potential_infected, infected_today)
+        infected_indices = _randomly_assign_death_people(
+            potential_infected, infected_today
+        )
 
         # remove the impact from SMALL_VALUE
         potential_infected[potential_infected < 0.1] = 0.0
@@ -238,7 +263,12 @@ class SEIRMProgression(DiseaseProgression):
         return output
 
     def update_current_stage(
-        self, newly_exposed_today, current_stages, agents_next_stage_times, death_indices, t
+        self,
+        newly_exposed_today,
+        current_stages,
+        agents_next_stage_times,
+        death_indices,
+        t,
     ):
         """progress disease: move agents to different disease stage"""
 
@@ -250,13 +280,13 @@ class SEIRMProgression(DiseaseProgression):
 
         # agents_next_stage_times_max = agents_next_stage_times + 0.5
 
-        after_exposed = STAGE_INDEX["exposed"] * (t < agents_next_stage_times) + STAGE_INDEX[
-            "infected"
-        ] * (t == agents_next_stage_times)
+        after_exposed = STAGE_INDEX["exposed"] * (
+            t < agents_next_stage_times
+        ) + STAGE_INDEX["infected"] * (t == agents_next_stage_times)
 
-        after_infected = STAGE_INDEX["infected"] * (t < agents_next_stage_times) + STAGE_INDEX[
-            "recovered_or_death"
-        ] * (t == agents_next_stage_times)
+        after_infected = STAGE_INDEX["infected"] * (
+            t < agents_next_stage_times
+        ) + STAGE_INDEX["recovered_or_death"] * (t == agents_next_stage_times)
 
         after_infected[death_indices] = STAGE_INDEX["death"]
 
@@ -268,6 +298,8 @@ class SEIRMProgression(DiseaseProgression):
             + (current_stages == STAGE_INDEX["infected"]) * after_infected
         )
 
-        current_stages = newly_exposed_today * STAGE_INDEX["exposed"] + stage_progression
+        current_stages = (
+            newly_exposed_today * STAGE_INDEX["exposed"] + stage_progression
+        )
         # print(after_infected.tolist().count(4.0))
         return current_stages

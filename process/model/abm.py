@@ -15,9 +15,9 @@ from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing
 
-from model import ALL_PARAMS, DEVICE, STAGE_INDEX, TORCH_SEED_NUM
-from model.infection_network import InfectionNetwork
-from model.seirm_progression import SEIRMProgression
+from process.model import ALL_PARAMS, DEVICE, STAGE_INDEX, TORCH_SEED_NUM
+from process.model.infection_network import InfectionNetwork
+from process.model.seirm_progression import SEIRMProgression
 from utils.utils import create_random_seed, round_a_list
 
 logger = getLogger()
@@ -31,15 +31,22 @@ class GradABM:
 
         # Getting agents
         agents_df = self.params["all_agents"]
-        # self.agents_id = torch.arange(0, len(agents_df)).long().to(self.device)
         self.agents_id = torch.tensor(agents_df["id"].to_numpy()).long().to(self.device)
-        self.agents_ages = torch.tensor(agents_df["age"].to_numpy()).long().to(self.device)
-        self.agents_sex = torch.tensor(agents_df["sex"].to_numpy()).long().to(self.device)
+        self.agents_ages = (
+            torch.tensor(agents_df["age"].to_numpy()).long().to(self.device)
+        )
+        self.agents_sex = (
+            torch.tensor(agents_df["gender"].to_numpy()).long().to(self.device)
+        )
         self.agents_ethnicity = (
             torch.tensor(agents_df["ethnicity"].to_numpy()).long().to(self.device)
         )
-        self.agents_vaccine = torch.tensor(agents_df["vaccine"].to_numpy()).long().to(self.device)
-        self.agents_area = torch.tensor(agents_df["area"].to_numpy()).long().to(self.device)
+        self.agents_vaccine = (
+            torch.tensor(agents_df["vaccine"].to_numpy()).long().to(self.device)
+        )
+        self.agents_area = (
+            torch.tensor(agents_df["area"].to_numpy()).long().to(self.device)
+        )
         self.scaling_factor_update = self.params["scaling_factor_update"]
         self.outbreak_ctl_update = self.params["outbreak_ctl_update"]
         self.initial_infected_ids = self.params["initial_infected_ids"]
@@ -53,34 +60,42 @@ class GradABM:
 
         # Getting interaction:
         all_interactions = self.params["all_interactions"]
-        self.agents_mean_interactions_mu = all_interactions["agents_mean_interactions_mu"]
+        self.agents_mean_interactions_mu = all_interactions[
+            "agents_mean_interactions_mu"
+        ]
         self.agents_mean_interactions_mu_split = all_interactions[
             "agents_mean_interactions_mu_split"
         ]
-        # self.network_type_dict_inv = all_interactions["network_type_dict_inv"]
-        # self.network_type_dict = all_interactions["network_type_dict"]
 
         self.DPM = SEIRMProgression(self.params)
 
         self.SFSusceptibility_age = (
-            torch.tensor(self.params["infection_cfg"]["scaling_factor"]["age_dependant"])
+            torch.tensor(
+                self.params["infection_cfg"]["scaling_factor"]["age_dependant"]
+            )
             # torch.tensor([0.1])
             .float().to(self.device)
         )
         self.SFInfector = (
-            torch.tensor(self.params["infection_cfg"]["scaling_factor"]["symptom_dependant"])
+            torch.tensor(
+                self.params["infection_cfg"]["scaling_factor"]["symptom_dependant"]
+            )
             .float()
             .to(self.device)
         )
 
         self.SFSusceptibility_ethnicity = (
-            torch.tensor(self.params["infection_cfg"]["scaling_factor"]["ethnicity_dependant"])
+            torch.tensor(
+                self.params["infection_cfg"]["scaling_factor"]["ethnicity_dependant"]
+            )
             .float()
             .to(self.device)
         )
 
         self.SFSusceptibility_sex = (
-            torch.tensor(self.params["infection_cfg"]["scaling_factor"]["sex_dependant"])
+            torch.tensor(
+                self.params["infection_cfg"]["scaling_factor"]["sex_dependant"]
+            )
             .float()
             .to(self.device)
         )
@@ -91,7 +106,9 @@ class GradABM:
         except (KeyError, TypeError):
             vaccine_cfg = self.params["infection_cfg"]["scaling_factor"]["vaccine"]
 
-        self.SFSusceptibility_vaccine = torch.tensor(vaccine_cfg).float().to(self.device)
+        self.SFSusceptibility_vaccine = (
+            torch.tensor(vaccine_cfg).float().to(self.device)
+        )
 
         # Scaling factor for outbreak ctl
         try:
@@ -136,7 +153,9 @@ class GradABM:
                 self.agents_infected_index.to(self.device),  # 5: infected index
                 self.agents_infected_time.to(self.device),  # 6: infected time
                 *self.agents_mean_interactions_mu_split,  # 7 to 29: represents the number of venues where agents can interact with each other
-                torch.arange(self.params["num_agents"]).to(self.device),  # Agent ids (30)
+                torch.arange(self.params["num_agents"]).to(
+                    self.device
+                ),  # Agent ids (30)
             )
         ).t()
 
@@ -178,14 +197,20 @@ class GradABM:
                 logits=cat_logits, tau=1, hard=True, dim=1
             )[:, 0]
 
-            if not isnan(potentially_exposed_today.cpu().clone().detach().numpy()).any():
+            if not isnan(
+                potentially_exposed_today.cpu().clone().detach().numpy()
+            ).any():
                 break
 
         newly_exposed_today = self.DPM.get_newly_exposed(
             self.current_stages, potentially_exposed_today
         )
         # newly_exposed_today = potentially_exposed_today
-        return newly_exposed_today, potentially_exposed_today, infection_distribution_percentage
+        return (
+            newly_exposed_today,
+            potentially_exposed_today,
+            infection_distribution_percentage,
+        )
 
     def create_random_infected_tensors(
         self,
@@ -220,9 +245,9 @@ class GradABM:
             self.device,
         ).float()
 
-        self.agents_infected_index = (self.current_stages == STAGE_INDEX["infected"]).to(
-            self.device
-        )
+        self.agents_infected_index = (
+            self.current_stages == STAGE_INDEX["infected"]
+        ).to(self.device)
 
         self.agents_infected_time = self.DPM.init_infected_time(
             self.current_stages, self.device
@@ -244,13 +269,19 @@ class GradABM:
             susceptible_num = current_stages_list.count(STAGE_INDEX["susceptible"])
             exposed_num = current_stages_list.count(STAGE_INDEX["exposed"])
             infected_num = current_stages_list.count(STAGE_INDEX["infected"])
-            recovered_or_death_num = current_stages_list.count(STAGE_INDEX["recovered_or_death"])
-            total_num = susceptible_num + exposed_num + infected_num + recovered_or_death_num
+            recovered_or_death_num = current_stages_list.count(
+                STAGE_INDEX["recovered_or_death"]
+            )
+            total_num = (
+                susceptible_num + exposed_num + infected_num + recovered_or_death_num
+            )
             print(
                 f"    cur_stage: {susceptible_num}(susceptible), {exposed_num}(exposed), {infected_num}(infected), {recovered_or_death_num}(recovered_or_death), {total_num}(total)"
             )
         if "stage_times" in debug_info:
-            print(f"    next_stage_times: {round_a_list(agents_next_stage_times.tolist())}")
+            print(
+                f"    next_stage_times: {round_a_list(agents_next_stage_times.tolist())}"
+            )
         if "exposed" in debug_info:
             print(f"    newly exposed: {newly_exposed_today}")
         if "die" in debug_info:
@@ -267,10 +298,16 @@ class GradABM:
                 except IndexError:  # if only one learnable param
                     self.proc_params[proc_param] = param_t
             else:
-                self.proc_params[proc_param] = param_info["learnable_param_default"][proc_param]
+                self.proc_params[proc_param] = param_info["learnable_param_default"][
+                    proc_param
+                ]
 
     def cal_lam_gamma_integrals(
-        self, shape, scale, infection_gamma_scaling_factor, max_infectiousness_timesteps=3
+        self,
+        shape,
+        scale,
+        infection_gamma_scaling_factor,
+        max_infectiousness_timesteps=3,
     ):
         self.lam_gamma_integrals = self._get_lam_gamma_integrals(
             shape,
@@ -349,7 +386,11 @@ class GradABM:
 
         if debug:
             self.print_debug_info(
-                self.current_stages, self.agents_next_stage_times, newly_exposed_today, target, t
+                self.current_stages,
+                self.agents_next_stage_times,
+                newly_exposed_today,
+                target,
+                t,
             )
 
         next_stages = self.DPM.update_current_stage(
@@ -451,7 +492,9 @@ def forward_abm(
     }
 
 
-def build_abm(all_agents, all_interactions, infection_cfg: dict, cfg_update: None or dict):
+def build_abm(
+    all_agents, all_interactions, infection_cfg: dict, cfg_update: None or dict
+):
     """build simulator: ABM or ODE"""
     params = {
         "all_agents": all_agents,
@@ -480,7 +523,9 @@ def build_abm(all_agents, all_interactions, infection_cfg: dict, cfg_update: Non
                                 proc_data = pandas_read_csv(proc_agent)
                                 all_infected_ids.extend(list(proc_data["id"]))
                             else:
-                                raise Exception("Not able to get the cfg for initial_infected_ids")
+                                raise Exception(
+                                    "Not able to get the cfg for initial_infected_ids"
+                                )
                         else:
                             all_infected_ids.append(proc_agent)
                     params[param_key] = all_infected_ids

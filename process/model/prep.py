@@ -1,12 +1,16 @@
+import logging
 from itertools import product
+from logging import getLogger
 from os import environ as os_environ
 
 from numpy import linspace
 from torch.autograd import set_detect_anomaly
 
-from model import PRERUN_PARAMS_NUM
-from model.inputs import create_agents, create_interactions, train_data_wrapper
+from process.model import PRERUN_PARAMS_NUM
+from process.model.inputs import create_agents, create_interactions, train_data_wrapper
 from utils.utils import read_cfg
+
+logger = getLogger()
 
 
 def prep_env():
@@ -34,16 +38,40 @@ def prep_model_inputs(
     target_cfg: dict,
     interaction_ratio_cfg: float,
 ) -> dict:
-    print("Step 1: Creating training background data ...")
+    """Create inputs for the model
+
+    Args:
+        agent_path (str): Base agents path
+        interaction_path (str): Interaction path
+        target_data_path (str): Target data path
+        interaction_cfg (str): Interaction configuration
+        target_cfg (dict): Target confiration
+        interaction_ratio_cfg (float): How many interaction to be drawn
+
+    Returns:
+        dict: contains the information:
+           - targets to be aimed
+           - total timestep to model
+           - processed agents
+           - processed interactions
+    """
+    logger.info("Step 1: Creating training background data ...")
     target_data = train_data_wrapper(target_data_path, target_cfg)
 
-    print("Step 2: Creating agents ...")
+    logger.info("Step 2: Creating agents ...")
     all_agents = create_agents(agent_path, max_agents=None)
 
-    print("Step 3: Creating interactions ...")
+    logger.info("Step 3: Creating interactions ...")
     all_interactions = create_interactions(
-        interaction_cfg, interaction_path, len(all_agents["id"].unique()), interaction_ratio_cfg
+        interaction_cfg,
+        interaction_path,
+        len(all_agents["id"].unique()),
+        interaction_ratio_cfg,
     )
+
+    # all_agents2 = all_agents.reset_index()
+    # all_agents2["index"] = all_agents2.index
+    # index_id_map = dict(zip(all_agents2['id'], all_agents2['index']))
 
     return {
         "target": target_data["target"],

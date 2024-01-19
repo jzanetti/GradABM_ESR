@@ -11,13 +11,17 @@ import argparse
 from os import makedirs
 from os.path import exists, join
 
-from model import INITIAL_LOSS, PRERUN_NUM_EPOCHS, PRINT_INCRE
-from model.abm import build_abm, forward_abm
-from model.diags import save_outputs
-from model.loss_func import get_loss_func, loss_optimization
-from model.param_model import create_param_model, obtain_param_cfg, param_model_forward
-from model.postp import postproc_train
-from model.prep import prep_env, prep_model_inputs, update_params_for_prerun
+from process.model import INITIAL_LOSS, PRERUN_NUM_EPOCHS, PRINT_INCRE
+from process.model.abm import build_abm, forward_abm
+from process.model.diags import save_outputs
+from process.model.loss_func import get_loss_func, loss_optimization
+from process.model.param_model import (
+    create_param_model,
+    obtain_param_cfg,
+    param_model_forward,
+)
+from process.model.postp import postproc_train
+from process.model.prep import prep_env, prep_model_inputs, update_params_for_prerun
 from utils.utils import get_params_increments, read_cfg, setup_logging
 
 

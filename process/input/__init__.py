@@ -19,7 +19,9 @@ AGE_INDEX = {
 
 ETHNICITY_INDEX = {"European": 0, "Maori": 1, "Pacific": 2, "Asian": 3, "MELAA": 4}
 
-SEX_INDEX = {"m": 0, "f": 1}
+GENDER_INDEX = {"male": 0, "female": 1}
+
+VACCINE_INDEX = {"yes": 1, "no": 0}
 
 TRAINING_ENS_MEMBERS = 1
 

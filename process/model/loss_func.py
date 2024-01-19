@@ -11,7 +11,7 @@ from torchmetrics.regression import (
     MeanSquaredError,
 )
 
-from model import DEVICE, OPT_METHOD, OPT_METRIC, USE_LOSS_SCALER
+from process.model import DEVICE, OPT_METHOD, OPT_METRIC, USE_LOSS_SCALER
 
 logger = getLogger()
 
@@ -146,7 +146,9 @@ def get_loss_func(
     }
 
 
-def loss_optimization(loss, param_model, loss_def: dict, cfg_opt: dict, print_grad: bool = False):
+def loss_optimization(
+    loss, param_model, loss_def: dict, cfg_opt: dict, print_grad: bool = False
+):
     if loss_def["loss_func_scaler"] is None:
         loss.backward()
         if cfg_opt["clip_grad_norm"] is not None:

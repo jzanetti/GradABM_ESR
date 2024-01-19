@@ -15,8 +15,8 @@ import argparse
 from os.path import join
 from pickle import load as pickle_load
 
-from model.diags import plot_diags
 from process.input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
+from process.model.diags import plot_diags
 from utils.utils import read_cfg
 
 

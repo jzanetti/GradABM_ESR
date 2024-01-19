@@ -17,10 +17,10 @@ from os.path import exists, join
 
 from torch.cuda import empty_cache
 
-from model.abm import build_abm, forward_abm
-from model.diags import load_outputs, plot_diags
-from model.postp import postproc_pred, write_output
-from model.prep import prep_model_inputs
+from process.model.abm import build_abm, forward_abm
+from process.model.diags import load_outputs, plot_diags
+from process.model.postp import postproc_pred, write_output
+from process.model.prep import prep_model_inputs
 from utils.utils import read_cfg, setup_logging
 
 
@@ -54,7 +54,9 @@ def setup_parser():
     )
 
     parser.add_argument(
-        "--workdir", required=True, help="Working directory, e.g., where the output will be stored"
+        "--workdir",
+        required=True,
+        help="Working directory, e.g., where the output will be stored",
     )
 
     parser.add_argument(
@@ -72,7 +74,9 @@ def setup_parser():
         "ABM but using trained parameters)",
     )
 
-    parser.add_argument("--exp_id", required=True, help="Experiment name/id, e.g., base_exp")
+    parser.add_argument(
+        "--exp_id", required=True, help="Experiment name/id, e.g., base_exp"
+    )
 
     parser.add_argument(
         "--model_id",
@@ -190,4 +194,11 @@ def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
 
 if __name__ == "__main__":
     args = setup_parser()
-    main(args.workdir, args.cfg, args.model_base_dir, args.exp_id, args.model_id, args.ens_id)
+    main(
+        args.workdir,
+        args.cfg,
+        args.model_base_dir,
+        args.exp_id,
+        args.model_id,
+        args.ens_id,
+    )

@@ -7,8 +7,8 @@ from cli.cli_input import main as input_main
 from cli.cli_predict import main as predict_main
 from cli.cli_train import main as train_main
 from cli.cli_vis import main as vis_main
-from model.prep import get_prerun_params
 from process.input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
+from process.model.prep import get_prerun_params
 from utils.utils import read_cfg
 
 workdir = "exp/policy_paper"
@@ -22,7 +22,7 @@ input_data = {
     "dhb_list": ["Counties Manukau"],
 }
 
-model_cfg_path = "data/measles/base/gradam_exp_vac1.yml"
+model_cfg_path = "data/measles_v2/base/gradam_exp_vac.yml"
 vis_cfg_path = "data/measles/base/vis_exp_vac1.yml"
 prd_job_name = "base_exp"
 

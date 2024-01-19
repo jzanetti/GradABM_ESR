@@ -17,10 +17,16 @@ ALL_PARAMS = [
     "infection_gamma_scaling_factor",
 ]
 
-STAGE_INDEX = {"susceptible": 0, "exposed": 1, "infected": 2, "recovered_or_death": 3, "death": 4}
+STAGE_INDEX = {
+    "susceptible": 0,
+    "exposed": 1,
+    "infected": 2,
+    "recovered_or_death": 3,
+    "death": 4,
+}
 
-DEVICE = torch_device(f"cuda:0")
-# DEVICE = torch_device("cpu")
+# DEVICE = torch_device(f"cuda:0")
+DEVICE = torch_device("cpu")
 
 """
 TORCH_SEED_NUM = {

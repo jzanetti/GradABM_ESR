@@ -4,7 +4,7 @@ from torch import tensor as torch_tensor
 from torch import zeros as torch_zeros
 from yaml import safe_load as yaml_load
 
-from model import DEVICE, USE_RNN
+from process.model import DEVICE, USE_RNN
 from utils.utils import read_cfg
 
 
@@ -54,10 +54,13 @@ def get_params(learnable_params: dict) -> dict:
             param_min.append(learnable_params[param_name]["min"])
             param_max.append(learnable_params[param_name]["max"])
             learnable_params_list.append(
-                learnable_params[param_name]["default"] / learnable_params[param_name]["max"]
+                learnable_params[param_name]["default"]
+                / learnable_params[param_name]["max"]
             )
         else:
-            learnable_param_default[param_name] = learnable_params[param_name]["default"]
+            learnable_param_default[param_name] = learnable_params[param_name][
+                "default"
+            ]
 
         # learnable_param_others[param_name].append(learnable_params[param_name]["others"])
 
@@ -107,10 +110,13 @@ class TemporalNN(nn.Module):
             nn.ReLU(),
             nn.Linear(in_features=hidden_size, out_features=int(hidden_size / 2)),
             nn.ReLU(),
-            nn.Linear(in_features=int(hidden_size / 2), out_features=int(hidden_size / 4)),
+            nn.Linear(
+                in_features=int(hidden_size / 2), out_features=int(hidden_size / 4)
+            ),
             nn.ReLU(),
             nn.Linear(
-                in_features=int(hidden_size / 4), out_features=len(self.learnable_param_order)
+                in_features=int(hidden_size / 4),
+                out_features=len(self.learnable_param_order),
             ),
         ]
         self.fc = nn.Sequential(*fc)
@@ -123,11 +129,15 @@ class TemporalNN(nn.Module):
 
     def forward(self, x, device):
         if self.init_run:
-            h0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(device)
+            h0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(
+                device
+            )
             if self.use_rnn:
                 hc = h0
             else:
-                c0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(device)
+                c0 = torch_zeros(2 * self.num_layers, x.shape[0], self.hidden_size).to(
+                    device
+                )
                 hc = (h0, c0)
             out, _ = self.temporal_model(torch_tensor(x).float(), hc)
             self.init_run = False
@@ -158,9 +168,9 @@ class LearnableParams(nn.Module):
         self.scaling_func = nn.Sigmoid()
 
     def forward(self):
-        return self.min_values + (self.max_values - self.min_values) * self.scaling_func(
-            self.learnable_params
-        )
+        return self.min_values + (
+            self.max_values - self.min_values
+        ) * self.scaling_func(self.learnable_params)
 
     def param_info(self):
         return {

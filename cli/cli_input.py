@@ -14,9 +14,9 @@ from os.path import exists
 from process.input.create_inputs import (
     get_agents,
     get_diary_data,
-    get_interactions,
     get_sa2_from_dhb,
     read_june_nz_inputs,
+    write_agent_and_interactions,
     write_target,
 )
 from process.utils.utils import read_cfg, setup_logging
@@ -141,14 +141,15 @@ def main(
     sa2 = get_sa2_from_dhb(sa2_dhb_map_path, dhb_list)
 
     logger.info("Getting agents and diget_agent_and_diary_dataaries ...")
-    diary = get_diary_data(synpop_path, diary_path)
+    agents_and_diary = get_diary_data(synpop_path, diary_path)
 
     logger.info("Creating interactions ...")
-    get_interactions(
-        diary,
+    write_agent_and_interactions(
+        agents_and_diary,
         sa2,
         workdir,
         cfg["interaction_ratio"],
+        cfg["vaccine_ratio"],
         max_interaction_for_each_venue=None,
     )
 
