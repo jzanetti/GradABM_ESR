@@ -26,10 +26,10 @@ vis_cfg_path = "data/measles/base/vis_exp_vac1.yml"
 prd_job_name = "base_exp"
 
 run_input_main = False
-run_prerun = False
+run_prerun = True
 run_model_main = False
-run_predict_main = True
-run_vis_main = True
+run_predict_main = False
+run_vis_main = False
 remove_all_old_runs = False
 
 if remove_all_old_runs:

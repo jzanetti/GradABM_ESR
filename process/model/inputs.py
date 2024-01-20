@@ -176,10 +176,7 @@ def agent_interaction_wrapper(
 
 
 def create_interactions(
-    interaction_cfg: dict,
-    interaction_graph_path: str,
-    num_agents: int,
-    interaction_ratio: float,
+    interaction_cfg: dict, interaction_graph_path: str, num_agents: int
 ) -> dict:
     """Obtain interaction networks
 
@@ -218,7 +215,7 @@ def create_interactions(
     # Get agents interaction intensity
     # ----------------------------
     agent_interaction_data = agent_interaction_wrapper(
-        interaction_cfg, network_type_dict_inv, num_agents
+        interaction_cfg["venues"], network_type_dict_inv, num_agents
     )
 
     # ----------------------------
@@ -234,14 +231,14 @@ def create_interactions(
         edges_mean_interaction_cfg = pandas_read_parquet(interaction_graph_path)
 
     edges_mean_interaction_cfg = edges_mean_interaction_cfg.sample(
-        frac=interaction_ratio
+        frac=interaction_cfg["interaction_ratio"]
     )
 
     agents_mean_interactions_bn = {}
     for network_name in network_type_dict:
         agents_mean_interactions_bn[network_type_dict[network_name]] = interaction_cfg[
-            network_name
-        ]["bn"]
+            "venues"
+        ][network_name]["bn"]
 
     all_edgelist, all_edgeattr = init_interaction_graph(
         edges_mean_interaction_cfg, agents_mean_interactions_bn, create_bidirection

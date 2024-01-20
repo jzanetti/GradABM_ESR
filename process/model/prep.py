@@ -42,7 +42,6 @@ def prep_wrapper(
         target_data_path,
         cfg["interaction"],
         cfg["target"],
-        cfg["interaction_ratio"],
     )
 
     return model_inputs, cfg
@@ -100,7 +99,6 @@ def prep_model_inputs(
     target_data_path: str,
     interaction_cfg: str,
     target_cfg: dict,
-    interaction_ratio_cfg: float,
 ) -> dict:
     """Create inputs for the model
 
@@ -110,7 +108,6 @@ def prep_model_inputs(
         target_data_path (str): Target data path
         interaction_cfg (str): Interaction configuration
         target_cfg (dict): Target confiration
-        interaction_ratio_cfg (float): How many interaction to be drawn
 
     Returns:
         dict: contains the information:
@@ -127,15 +124,8 @@ def prep_model_inputs(
 
     logger.info("Step 3: Creating interactions ...")
     all_interactions = create_interactions(
-        interaction_cfg,
-        interaction_path,
-        len(all_agents["id"].unique()),
-        interaction_ratio_cfg,
+        interaction_cfg, interaction_path, len(all_agents["id"].unique())
     )
-
-    # all_agents2 = all_agents.reset_index()
-    # all_agents2["index"] = all_agents2.index
-    # index_id_map = dict(zip(all_agents2['id'], all_agents2['index']))
 
     return {
         "target": target_data["target"],

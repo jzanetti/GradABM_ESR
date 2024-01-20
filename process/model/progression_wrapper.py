@@ -1,3 +1,5 @@
+from abc import ABC, abstractmethod
+
 import torch.nn.functional as F
 from numpy import arange as numpy_arange
 from numpy import array
@@ -28,11 +30,31 @@ from torch import zeros as torch_zeros
 from torch import zeros_like as torch_zeros_like
 
 from process.model import SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
-from process.model.disease_progression import DiseaseProgression
-from utils.utils import create_random_seed
 
 
-class SEIRMProgression(DiseaseProgression):
+class DiseaseProgression(ABC):
+    """abstract class"""
+
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def init_infected_agents(self):
+        """initialize tensor variables depending on disease"""
+        pass
+
+    @abstractmethod
+    def update_next_stage_times(self):
+        """update time"""
+        pass
+
+    @abstractmethod
+    def update_current_stage(self):
+        """update stage"""
+        pass
+
+
+class Progression_wrapper(DiseaseProgression):
     """SEIRM for COVID-19"""
 
     def __init__(self, params):

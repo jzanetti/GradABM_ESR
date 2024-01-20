@@ -211,7 +211,7 @@ def lam(
     return res.view(-1, 1)
 
 
-class InfectionNetwork(MessagePassing):
+class GNN_model(MessagePassing):
     """Contact network with graph message passing function for disease spread"""
 
     def __init__(
@@ -223,7 +223,7 @@ class InfectionNetwork(MessagePassing):
         SFInfector,
         device,
     ):
-        super(InfectionNetwork, self).__init__(aggr="add")
+        super(GNN_model, self).__init__(aggr="add")
         self.lam = lam
         self.SFSusceptibility_age = SFSusceptibility_age
         self.SFSusceptibility_sex = SFSusceptibility_sex

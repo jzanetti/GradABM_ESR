@@ -25,7 +25,7 @@ from process.model import (
     STAGE_INDEX,
     TORCH_SEED_NUM,
 )
-from process.model.infection_network import InfectionNetwork
+from process.model.gnn import GNN_model
 from process.model.loss_func import get_loss_func, loss_optimization
 from process.model.param import (
     create_param_model,
@@ -33,7 +33,7 @@ from process.model.param import (
     param_model_forward,
 )
 from process.model.prep import update_params_for_prerun
-from process.model.seirm_progression import SEIRMProgression
+from process.model.progression_wrapper import Progression_wrapper
 from utils.utils import create_random_seed, round_a_list
 
 logger = getLogger()
@@ -83,14 +83,13 @@ class GradABM:
             "agents_mean_interactions_mu_split"
         ]
 
-        self.DPM = SEIRMProgression(self.params)
-
+        # Getting susceptibility
         self.SFSusceptibility_age = (
             torch.tensor(
                 self.params["infection_cfg"]["scaling_factor"]["age_dependant"]
             )
-            # torch.tensor([0.1])
-            .float().to(self.device)
+            .float()
+            .to(self.device)
         )
         self.SFInfector = (
             torch.tensor(
@@ -138,7 +137,9 @@ class GradABM:
         except (KeyError, TypeError):
             self.perturbation = False
 
-        self.net = InfectionNetwork(
+        self.progression_wrapper = Progression_wrapper(self.params)
+
+        self.gnn_model = GNN_model(
             self.SFSusceptibility_age,
             self.SFSusceptibility_sex,
             self.SFSusceptibility_ethnicity,
@@ -186,7 +187,7 @@ class GradABM:
         )
 
         # print(t, f"before: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
-        lam_t = self.net(
+        lam_t = self.gnn_model(
             agents_data,
             lam_gamma_integrals,
             self.outbreak_ctl_cfg,
@@ -218,7 +219,7 @@ class GradABM:
             ).any():
                 break
 
-        newly_exposed_today = self.DPM.get_newly_exposed(
+        newly_exposed_today = self.progression_wrapper.get_newly_exposed(
             self.current_stages, potentially_exposed_today
         )
         # newly_exposed_today = potentially_exposed_today
@@ -234,7 +235,7 @@ class GradABM:
         infected_to_recovered_time,
         t,
     ):
-        return self.DPM.add_random_infected(
+        return self.progression_wrapper.add_random_infected(
             random_percentage,
             infected_to_recovered_time,
             self.current_stages,
@@ -249,23 +250,25 @@ class GradABM:
         initial_infected_percentage,
         infected_to_recovered_or_dead_time,
     ):
-        self.current_stages = self.DPM.init_infected_agents(
+        self.current_stages = self.progression_wrapper.init_infected_agents(
             initial_infected_percentage,
             self.initial_infected_ids,
             self.agents_id,
             self.device,
         )
-        self.agents_next_stage_times = self.DPM.init_agents_next_stage_time(
-            self.current_stages,
-            infected_to_recovered_or_dead_time,
-            self.device,
-        ).float()
+        self.agents_next_stage_times = (
+            self.progression_wrapper.init_agents_next_stage_time(
+                self.current_stages,
+                infected_to_recovered_or_dead_time,
+                self.device,
+            ).float()
+        )
 
         self.agents_infected_index = (
             self.current_stages == STAGE_INDEX["infected"]
         ).to(self.device)
 
-        self.agents_infected_time = self.DPM.init_infected_time(
+        self.agents_infected_time = self.progression_wrapper.init_infected_time(
             self.current_stages, self.device
         ).float()
 
@@ -376,7 +379,11 @@ class GradABM:
             t,
         )
 
-        potential_infected, death_indices, target = self.DPM.get_target_variables(
+        (
+            potential_infected,
+            death_indices,
+            target,
+        ) = self.progression_wrapper.get_target_variables(
             self.proc_params["vaccine_efficiency_symptom"],
             self.current_stages,
             self.agents_next_stage_times,
@@ -409,7 +416,7 @@ class GradABM:
                 t,
             )
 
-        next_stages = self.DPM.update_current_stage(
+        next_stages = self.progression_wrapper.update_current_stage(
             newly_exposed_today,
             self.current_stages,
             self.agents_next_stage_times,
@@ -417,7 +424,7 @@ class GradABM:
             t,
         )
         # update times with current_stages
-        self.agents_next_stage_times = self.DPM.update_next_stage_times(
+        self.agents_next_stage_times = self.progression_wrapper.update_next_stage_times(
             self.proc_params["exposed_to_infected_time"],
             self.proc_params["infected_to_recovered_or_death_time"],
             newly_exposed_today,
