@@ -13,6 +13,70 @@ from utils.utils import read_cfg
 logger = getLogger()
 
 
+def prep_wrapper(
+    agents_data_path: str,
+    interaction_data_path: str,
+    target_data_path: str,
+    cfg_path: str,
+) -> tuple:
+    """Preprocessing wrapper
+
+    Args:
+        agents_data_path (str): Agents data path
+        interaction_data_path (str): Interaction data path
+        target_data_path (str): Target data path
+
+    Returns:
+        dict: output includes model_inputs and configuration
+    """
+    logger.info("Prep1: Reading configuration ...")
+    cfg = read_cfg(cfg_path, key="train")
+
+    logger.info("Prep2: Preparing model running environment ...")
+    prep_env()
+
+    logger.info("Prep3: Getting model input ...")
+    model_inputs = prep_model_inputs(
+        agents_data_path,
+        interaction_data_path,
+        target_data_path,
+        cfg["interaction"],
+        cfg["target"],
+        cfg["interaction_ratio"],
+    )
+
+    return model_inputs, cfg
+
+    logger.info("Prep4: Building ABM ...")
+    abm = build_abm(
+        model_inputs["all_agents"],
+        model_inputs["all_interactions"],
+        cfg["infection"],
+        None,
+    )
+
+    logger.info("Creating initial parameters (to be trained) ...")
+
+    param_model = create_param_model(
+        obtain_param_cfg(cfg["learnable_params"], prerun_params),
+        cfg["optimization"]["use_temporal_params"],
+    )
+
+    logger.info("Creating loss function ...")
+    loss_def = get_loss_func(
+        param_model, model_inputs["total_timesteps"], cfg["optimization"]
+    )
+    epoch_loss_list = []
+    param_values_list = []
+    smallest_loss = INITIAL_LOSS
+
+    if prerun_params:
+        num_epochs = PRERUN_NUM_EPOCHS
+        cfg = update_params_for_prerun(cfg)
+    else:
+        num_epochs = cfg["optimization"]["num_epochs"]
+
+
 def prep_env():
     """Prepare model running environment"""
 

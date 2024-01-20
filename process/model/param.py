@@ -4,12 +4,12 @@ from torch import tensor as torch_tensor
 from torch import zeros as torch_zeros
 from yaml import safe_load as yaml_load
 
-from process.model import DEVICE, USE_RNN
+from process.model import DEVICE, OPTIMIZATION_CFG, USE_RNN
 from utils.utils import read_cfg
 
 
-def param_model_forward(param_model, target, use_temporal_params):
-    if use_temporal_params:
+def param_model_forward(param_model, target):
+    if OPTIMIZATION_CFG["use_temporal_params"]:
         param_values_all = param_model.forward(target, DEVICE)
     else:
         param_values_all = param_model.forward()

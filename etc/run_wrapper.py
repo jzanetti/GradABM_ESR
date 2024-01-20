@@ -9,7 +9,6 @@ from cli.cli_train import main as train_main
 from cli.cli_vis import main as vis_main
 from process.input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 from process.model.prep import get_prerun_params
-from utils.utils import read_cfg
 
 workdir = "exp/policy_paper"
 
@@ -26,11 +25,11 @@ model_cfg_path = "data/measles_v2/base/gradam_exp_vac.yml"
 vis_cfg_path = "data/measles/base/vis_exp_vac1.yml"
 prd_job_name = "base_exp"
 
-run_input_main = True
+run_input_main = False
 run_prerun = False
 run_model_main = False
-run_predict_main = False
-run_vis_main = False
+run_predict_main = True
+run_vis_main = True
 remove_all_old_runs = False
 
 if remove_all_old_runs:
@@ -70,7 +69,7 @@ if run_prerun:
             all_lost[proc_param_key].append(proc_prep_param[proc_param_key])
         all_lost["lost"].append(proc_pre_run_lost)
 
-    DataFrame(all_lost).to_csv("prerun_stats.csv")
+    DataFrame(all_lost).to_csv("prerun_stats.csv", index=False)
     print("Prerun: done")
 
 

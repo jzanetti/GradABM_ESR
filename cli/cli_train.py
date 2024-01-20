@@ -12,17 +12,24 @@ from os import makedirs
 from os.path import exists, join
 
 from process.model import INITIAL_LOSS, PRERUN_NUM_EPOCHS, PRINT_INCRE
-from process.model.abm import build_abm, forward_abm
+from process.model.abm import build_abm, forward_abm, init_abm
 from process.model.diags import save_outputs
 from process.model.loss_func import get_loss_func, loss_optimization
-from process.model.param_model import (
+from process.model.param import (
     create_param_model,
     obtain_param_cfg,
     param_model_forward,
 )
 from process.model.postp import postproc_train
-from process.model.prep import prep_env, prep_model_inputs, update_params_for_prerun
+from process.model.prep import (
+    prep_env,
+    prep_model_inputs,
+    prep_wrapper,
+    update_params_for_prerun,
+)
 from utils.utils import get_params_increments, read_cfg, setup_logging
+
+prep_wrapper
 
 
 def get_example_usage():
@@ -81,91 +88,68 @@ def setup_parser():
 
 
 def main(
-    workdir,
-    exp,
-    cfg,
-    agents_data,
-    interaction_data,
-    target_data,
+    workdir: str,
+    exp_name: str,
+    cfg_path: str,
+    agents_data_path: str,
+    interaction_data_path: str,
+    target_data_path: str,
     prerun_params: list or None = None,
 ):
-    """Run June model for New Zealand"""
+    """Run the model training for GradABM_ESR
+
+    Args:
+        workdir (str): Working directory
+        exp_name (str): Experimental name
+        cfg_path (str): Configuration path
+        agents_data_path (str): Agent data path
+        interaction_data_path (str): Interaction data path
+        target_data_path (str): Target data path
+        prerun_params (list or None, optional): Prerun parameters. Defaults to None.
+    """
 
     if not exists(workdir):
         makedirs(workdir)
 
     logger = setup_logging(workdir)
 
-    logger.info("Reading configuration ...")
-    cfg = read_cfg(cfg, key="train")
-
-    logger.info("Preparing model running environment ...")
-    prep_env()
-
-    logger.info("Getting model input ...")
-    model_inputs = prep_model_inputs(
-        agents_data,
-        interaction_data,
-        target_data,
-        cfg["interaction"],
-        cfg["target"],
-        cfg["interaction_ratio"],
+    logger.info("Preprocessing ...")
+    model_inputs, cfg = prep_wrapper(
+        agents_data_path, interaction_data_path, target_data_path, cfg_path
     )
 
     logger.info("Building ABM ...")
-    abm = build_abm(
-        model_inputs["all_agents"],
-        model_inputs["all_interactions"],
-        cfg["infection"],
-        None,
-    )
+    abm = init_abm(model_inputs, cfg, prerun_params)
 
-    logger.info("Creating initial parameters (to be trained) ...")
-
-    param_model = create_param_model(
-        obtain_param_cfg(cfg["learnable_params"], prerun_params),
-        cfg["optimization"]["use_temporal_params"],
-    )
-
-    logger.info("Creating loss function ...")
-    loss_def = get_loss_func(
-        param_model, model_inputs["total_timesteps"], cfg["optimization"]
-    )
     epoch_loss_list = []
     param_values_list = []
     smallest_loss = INITIAL_LOSS
-
-    if prerun_params:
-        num_epochs = PRERUN_NUM_EPOCHS
-        cfg = update_params_for_prerun(cfg)
-    else:
-        num_epochs = cfg["optimization"]["num_epochs"]
-
-    for epi in range(num_epochs):
+    for epi in range(abm["num_epochs"]):
         param_values_all = param_model_forward(
-            param_model,
+            abm["param_model"],
             model_inputs["target"],
-            cfg["optimization"]["use_temporal_params"],
         )
         predictions = forward_abm(
             param_values_all,
-            param_model.param_info(),
-            abm,
+            abm["param_model"].param_info(),
+            abm["model"],
             model_inputs["total_timesteps"],
-            cfg["optimization"]["use_temporal_params"],
             save_records=False,
         )
 
         output = postproc_train(predictions, model_inputs["target"])
 
-        loss = loss_def["loss_func"](output["y"], output["pred"])
+        loss = abm["loss_def"]["loss_func"](output["y"], output["pred"])
 
         epoch_loss = loss_optimization(
-            loss, param_model, loss_def, cfg["optimization"], print_grad=False
+            loss,
+            abm["param_model"],
+            abm["loss_def"],
+            print_grad=False,
         )
 
         logger.info(
-            f"{epi}: Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; Lr: {round(loss_def['opt'].param_groups[0]['lr'], 5)}"
+            f"{epi}: Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; Lr: {round(abm['loss_def']['opt'].param_groups[0]['lr'], 5)}"
         )
 
         if PRINT_INCRE:
@@ -195,9 +179,9 @@ def main(
             },
             "all_interactions": model_inputs["all_interactions"],
             "params": {"param_with_smallest_loss": param_with_smallest_loss},
-            "param_model": param_model,
+            "param_model": abm["param_model"],
         },
-        join(workdir, exp),
+        join(workdir, exp_name),
     )
 
     logger.info("Job done ...")

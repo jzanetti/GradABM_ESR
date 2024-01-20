@@ -25,8 +25,8 @@ STAGE_INDEX = {
     "death": 4,
 }
 
-# DEVICE = torch_device(f"cuda:0")
-DEVICE = torch_device("cpu")
+DEVICE = torch_device(f"cuda:0")
+# DEVICE = torch_device("cpu")
 
 """
 TORCH_SEED_NUM = {
@@ -52,5 +52,13 @@ SMALL_VALUE = 1e-9
 
 PRINT_INCRE = True
 
-PRERUN_PARAMS_NUM = 5
+PRERUN_PARAMS_NUM = 8
 PRERUN_NUM_EPOCHS = 10
+
+OPTIMIZATION_CFG = {
+    "basic_lr": 0.1,
+    "num_epochs": 30,
+    "clip_grad_norm": 10.0,
+    "use_temporal_params": True,
+    "adaptive_lr": {"enable": True, "step": 15, "reduction_ratio": 0.9},
+}

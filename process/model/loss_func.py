@@ -11,7 +11,13 @@ from torchmetrics.regression import (
     MeanSquaredError,
 )
 
-from process.model import DEVICE, OPT_METHOD, OPT_METRIC, USE_LOSS_SCALER
+from process.model import (
+    DEVICE,
+    OPT_METHOD,
+    OPT_METRIC,
+    OPTIMIZATION_CFG,
+    USE_LOSS_SCALER,
+)
 
 logger = getLogger()
 
@@ -19,7 +25,6 @@ logger = getLogger()
 def get_loss_func(
     param_model,
     total_timesteps,
-    opt_cfg: dict,
     weight_decay: float = 0.0,  # 0.01
 ):
     """Obtain loss function
@@ -32,7 +37,7 @@ def get_loss_func(
     Returns:
         _type_: _description_
     """
-    basic_lr = opt_cfg["learning_rate"]["basic_lr"]
+    basic_lr = OPTIMIZATION_CFG["basic_lr"]
     if OPT_METHOD == "adam":
         opt = Adam(
             filter(lambda p: p.requires_grad, param_model.parameters()),
@@ -126,11 +131,11 @@ def get_loss_func(
         loss_func = CosineSimilarity().to(DEVICE)
 
     lr_scheduler = None
-    if opt_cfg["learning_rate"]["adaptive_lr"]["enable"]:
+    if OPTIMIZATION_CFG["adaptive_lr"]["enable"]:
         lr_scheduler = StepLR(
             opt,
-            step_size=opt_cfg["learning_rate"]["adaptive_lr"]["step"],
-            gamma=opt_cfg["learning_rate"]["adaptive_lr"]["reduction_ratio"],
+            step_size=OPTIMIZATION_CFG["adaptive_lr"]["step"],
+            gamma=OPTIMIZATION_CFG["adaptive_lr"]["reduction_ratio"],
         )
 
     loss_func_scaler = None
@@ -146,13 +151,13 @@ def get_loss_func(
     }
 
 
-def loss_optimization(
-    loss, param_model, loss_def: dict, cfg_opt: dict, print_grad: bool = False
-):
+def loss_optimization(loss, param_model, loss_def: dict, print_grad: bool = False):
     if loss_def["loss_func_scaler"] is None:
         loss.backward()
-        if cfg_opt["clip_grad_norm"] is not None:
-            clip_grad_norm_(param_model.parameters(), cfg_opt["clip_grad_norm"])
+        if OPTIMIZATION_CFG["clip_grad_norm"] is not None:
+            clip_grad_norm_(
+                param_model.parameters(), OPTIMIZATION_CFG["clip_grad_norm"]
+            )
         loss_def["opt"].step()
     else:
         loss_def["loss_func_scaler"].scale(loss).backward()
