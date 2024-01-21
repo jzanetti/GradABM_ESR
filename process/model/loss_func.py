@@ -47,47 +47,6 @@ def get_loss_func(
         )  # loss_fn = NegativeCosineSimilarityLoss()
 
     elif OPT_METHOD == "sgd":
-        """
-        import torch.nn as nn
-
-        weight_matrix = param_model.fc[-1].weight
-        learning_rate_weight_matrix_first_type = 0.5
-        weight_matrix_custom_param = nn.Parameter(weight_matrix[0, :], requires_grad=True)
-
-        learning_rate_rest_parameters = 0.1
-        rest_parameters = [
-            param for name, param in param_model.fc[-1].named_parameters() if name != "weight"
-        ][0]
-        param_group_rest_parameters = [
-            {"params": rest_parameters, "lr": learning_rate_rest_parameters}
-        ]
-
-        optimizer = SGD(
-            # filter(lambda p: p.requires_grad, param_model.parameters()),
-            [
-                # {"params": param_model.temporal_model.parameters(), "lr": 0.01},
-                # {"params": param_model.fc.parameters(), "lr": 0.01},
-                {
-                    "params": weight_matrix_custom_param,
-                    "lr": learning_rate_weight_matrix_first_type,
-                },
-                # *param_group_rest_parameters,
-            ],
-            lr=0.01,
-        )
-        optimizer = SGD(
-            [
-                {"params": param_model.temporal_model.parameters(), "lr": 0.01},
-                {"params": param_model.fc.parameters(), "lr": 0.01},
-                {
-                    "params": param_group_weight_matrix_first_type,
-                    "lr": learning_rate_weight_matrix_first_type,
-                },
-                *param_group_rest_parameters,
-            ],
-            lr=0.01,
-        )
-        """
         opt = SGD(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,

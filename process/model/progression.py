@@ -29,7 +29,7 @@ from torch import where as torch_where
 from torch import zeros as torch_zeros
 from torch import zeros_like as torch_zeros_like
 
-from process.model import SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
+from process.model import DEVICE, SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
 
 
 class DiseaseProgression(ABC):
@@ -54,15 +54,15 @@ class DiseaseProgression(ABC):
         pass
 
 
-class Progression_wrapper(DiseaseProgression):
+class Progression_model(DiseaseProgression):
     """SEIRM for COVID-19"""
 
-    def __init__(self, params):
+    def __init__(self, num_agents: int):
         super(DiseaseProgression, self).__init__()
         # encoding of stages
         # Stage progress:
         # SUSCEPTIBLE (0) => EXPOSED (1) => INFECTED (2) => RECOVERED/MORTALITY (3)
-        self.num_agents = params["num_agents"]
+        self.num_agents = num_agents
 
     def add_random_infected(
         self,
@@ -72,12 +72,12 @@ class Progression_wrapper(DiseaseProgression):
         agents_infected_time,
         agents_next_stage_times,
         t,
-        device,
+        # device,
     ):
         # Add random infected:
         random_infected_p = (random_percentage / 100.0) * torch_ones(
             (self.num_agents, 1)
-        ).to(device)
+        ).to(DEVICE)
         random_infected_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
         p = torch_hstack((random_infected_p, 1 - random_infected_p))
         cat_logits = torch_log(p + 1e-9)
@@ -115,7 +115,7 @@ class Progression_wrapper(DiseaseProgression):
         initial_infected_percentage,
         initial_infected_ids,
         agents_id,
-        device,
+        # device,
     ):
         if initial_infected_ids is not None:
             agents_stages = torch_zeros((self.num_agents))
@@ -126,7 +126,7 @@ class Progression_wrapper(DiseaseProgression):
         else:
             prob_infected = (initial_infected_percentage / 100) * torch_ones(
                 (self.num_agents, 1)
-            ).to(device)
+            ).to(DEVICE)
             p = torch_hstack((prob_infected, 1 - prob_infected))
             cat_logits = torch_log(p + 1e-9)
             if TORCH_SEED_NUM is not None:
@@ -137,19 +137,19 @@ class Progression_wrapper(DiseaseProgression):
             )[:, 0]
             agents_stages *= STAGE_INDEX["infected"]
 
-        return agents_stages.to(device)
+        return agents_stages.to(DEVICE)
 
-    def init_infected_time(self, agents_stages, device):
-        agents_infected_time = -1 * torch_ones_like(agents_stages).to(device)
+    def init_infected_time(self, agents_stages):
+        agents_infected_time = -1 * torch_ones_like(agents_stages).to(DEVICE)
         agents_infected_time[agents_stages == STAGE_INDEX["infected"]] = 0
 
         return agents_infected_time
 
     def init_agents_next_stage_time(
-        self, agents_stages, infected_to_recovered_or_dead_time, device, use_prob=False
+        self, agents_stages, infected_to_recovered_or_dead_time, use_prob=False
     ):
         # agents_next_stage_times = 0.001 * torch_ones_like(agents_stages).long().to(device)
-        agents_next_stage_times = torch_zeros_like(agents_stages).long().to(device)
+        agents_next_stage_times = torch_zeros_like(agents_stages).long().to(DEVICE)
 
         if use_prob:
             # Create an array with the desired values 1.0 and 2.0 with the specified probabilities.
@@ -167,7 +167,7 @@ class Progression_wrapper(DiseaseProgression):
             )
             agents_next_stage_times[
                 agents_stages == STAGE_INDEX["infected"]
-            ] = torch_tensor(random_values, dtype=torch_long).to(device)
+            ] = torch_tensor(random_values, dtype=torch_long).to(DEVICE)
         else:
             agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = (
                 0 + infected_to_recovered_or_dead_time

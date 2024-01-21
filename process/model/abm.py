@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from numpy import array, isnan, where
 from numpy.random import choice
+from pandas import DataFrame
 from pandas import read_csv as pandas_read_csv
 from scipy.stats import gamma as stats_gamma
 from torch import manual_seed as torch_seed
@@ -27,131 +28,98 @@ from process.model import (
 )
 from process.model.gnn import GNN_model
 from process.model.loss_func import get_loss_func, loss_optimization
-from process.model.param import (
-    create_param_model,
-    obtain_param_cfg,
-    param_model_forward,
-)
+from process.model.param import build_param_model, obtain_param_cfg, param_model_forward
 from process.model.prep import update_params_for_prerun
-from process.model.progression_wrapper import Progression_wrapper
+from process.model.progression import Progression_model
 from utils.utils import create_random_seed, round_a_list
 
 logger = getLogger()
 
 
-# all_agents, all_interactions, num_steps, num_agents
 class GradABM:
     def __init__(self, params):
-        self.params = params
-        self.device = DEVICE
+        # -----------------------------
+        # Step 2: set up agents
+        # -----------------------------
+        for attr in ["id", "age", "gender", "ethnicity", "vaccine", "area"]:
+            setattr(
+                self,
+                f"agents_{attr}",
+                torch.tensor(params["all_agents"][attr].to_numpy()).long().to(DEVICE),
+            )
+        self.num_agents = len(params["all_agents"])
 
-        # Getting agents
-        agents_df = self.params["all_agents"]
-        self.agents_id = torch.tensor(agents_df["id"].to_numpy()).long().to(self.device)
-        self.agents_ages = (
-            torch.tensor(agents_df["age"].to_numpy()).long().to(self.device)
-        )
-        self.agents_sex = (
-            torch.tensor(agents_df["gender"].to_numpy()).long().to(self.device)
-        )
-        self.agents_ethnicity = (
-            torch.tensor(agents_df["ethnicity"].to_numpy()).long().to(self.device)
-        )
-        self.agents_vaccine = (
-            torch.tensor(agents_df["vaccine"].to_numpy()).long().to(self.device)
-        )
-        self.agents_area = (
-            torch.tensor(agents_df["area"].to_numpy()).long().to(self.device)
-        )
-        self.scaling_factor_update = self.params["scaling_factor_update"]
-        self.outbreak_ctl_update = self.params["outbreak_ctl_update"]
-        self.initial_infected_ids = self.params["initial_infected_ids"]
-
-        self.params["num_agents"] = len(agents_df)
-        self.num_agents = self.params["num_agents"]
-        self.use_random_infection = True
-
-        if self.params["use_random_infection"] is not None:
-            self.use_random_infection = self.params["use_random_infection"]
-
-        # Getting interaction:
-        all_interactions = self.params["all_interactions"]
+        # -----------------------------
+        # Step 3: set up interaction
+        # -----------------------------
+        all_interactions = params["all_interactions"]
         self.agents_mean_interactions_mu = all_interactions[
             "agents_mean_interactions_mu"
         ]
         self.agents_mean_interactions_mu_split = all_interactions[
             "agents_mean_interactions_mu_split"
         ]
+        self.all_edgelist = all_interactions["all_edgelist"]
+        self.all_edgeattr = all_interactions["all_edgeattr"]
 
-        # Getting susceptibility
-        self.SFSusceptibility_age = (
-            torch.tensor(
-                self.params["infection_cfg"]["scaling_factor"]["age_dependant"]
-            )
-            .float()
-            .to(self.device)
-        )
-        self.SFInfector = (
-            torch.tensor(
-                self.params["infection_cfg"]["scaling_factor"]["symptom_dependant"]
-            )
-            .float()
-            .to(self.device)
-        )
+        # -----------------------------
+        # Step 4: set up prediction configuration
+        # -----------------------------
+        self.initial_infected_ids = params["initial_infected_ids"]
+        self.use_random_infection = True
+        if params["use_random_infection"] is not None:
+            self.use_random_infection = params["use_random_infection"]
 
-        self.SFSusceptibility_ethnicity = (
-            torch.tensor(
-                self.params["infection_cfg"]["scaling_factor"]["ethnicity_dependant"]
-            )
-            .float()
-            .to(self.device)
-        )
-
-        self.SFSusceptibility_sex = (
-            torch.tensor(
-                self.params["infection_cfg"]["scaling_factor"]["sex_dependant"]
-            )
-            .float()
-            .to(self.device)
-        )
-
-        # Scaling factor for vaccine
-        try:
-            vaccine_cfg = self.scaling_factor_update["vaccine"]
-        except (KeyError, TypeError):
-            vaccine_cfg = self.params["infection_cfg"]["scaling_factor"]["vaccine"]
-
-        self.SFSusceptibility_vaccine = (
-            torch.tensor(vaccine_cfg).float().to(self.device)
-        )
-
-        # Scaling factor for outbreak ctl
+        self.outbreak_ctl_update = params["outbreak_ctl_update"]
         try:
             self.outbreak_ctl_cfg = self.outbreak_ctl_update["outbreak_ctl"]
         except (KeyError, TypeError):
-            self.outbreak_ctl_cfg = self.params["infection_cfg"]["outbreak_ctl"]
+            self.outbreak_ctl_cfg = params["infection_cfg"]["outbreak_ctl"]
 
-        # Scaling factor perturbation for outbreak ctl
         try:
             self.perturbation = self.outbreak_ctl_update["perturbation"]
         except (KeyError, TypeError):
             self.perturbation = False
 
-        self.progression_wrapper = Progression_wrapper(self.params)
+        # -----------------------------
+        # Step 5: set up scaling_factor
+        # -----------------------------
+        for attr in ["age", "symptom", "ethnicity", "gender", "vaccine"]:
+            if attr == "vaccine":
+                try:
+                    vaccine_cfg = params["scaling_factor_update"]["vaccine"]
+                except (KeyError, TypeError):
+                    vaccine_cfg = params["infection_cfg"]["scaling_factor"]["vaccine"]
+                params["infection_cfg"]["scaling_factor"][
+                    f"{attr}_dependant"
+                ] = vaccine_cfg
+
+            setattr(
+                self,
+                f"scaling_factor_{attr}",
+                torch.tensor(
+                    params["infection_cfg"]["scaling_factor"][f"{attr}_dependant"]
+                )
+                .float()
+                .to(DEVICE),
+            )
+
+        # -----------------------------
+        # Step 7: set up progress and GNN model
+        # -----------------------------
+        self.progression_wrapper = Progression_model(self.num_agents)
 
         self.gnn_model = GNN_model(
-            self.SFSusceptibility_age,
-            self.SFSusceptibility_sex,
-            self.SFSusceptibility_ethnicity,
-            self.SFSusceptibility_vaccine,
-            self.SFInfector,
+            self.scaling_factor_age,
+            self.scaling_factor_gender,
+            self.scaling_factor_ethnicity,
+            self.scaling_factor_vaccine,
+            self.scaling_factor_symptom,
             # self.lam_gamma_integrals,
-            self.device,
-        ).to(self.device)
+            # self.device,
+        ).to(DEVICE)
 
         self.current_time = 0
-        self.all_edgelist = all_interactions["all_edgelist"]
-        self.all_edgeattr = all_interactions["all_edgeattr"]
 
     def get_newly_exposed(
         self,
@@ -162,17 +130,15 @@ class GradABM:
     ):
         all_nodeattr = torch.stack(
             (
-                self.agents_ages,  # 0: age
-                self.agents_sex,  # 1: sex
+                self.agents_age,  # 0: age
+                self.agents_gender,  # 1: sex
                 self.agents_ethnicity,  # 2: ethnicity
                 self.agents_vaccine,  # 3: vaccine
                 self.current_stages.detach(),  # 4: stage
-                self.agents_infected_index.to(self.device),  # 5: infected index
-                self.agents_infected_time.to(self.device),  # 6: infected time
+                self.agents_infected_index.to(DEVICE),  # 5: infected index
+                self.agents_infected_time.to(DEVICE),  # 6: infected time
                 *self.agents_mean_interactions_mu_split,  # 7 to 29: represents the number of venues where agents can interact with each other
-                torch.arange(self.params["num_agents"]).to(
-                    self.device
-                ),  # Agent ids (30)
+                torch.arange(self.num_agents).to(DEVICE),  # Agent ids (30)
             )
         ).t()
 
@@ -242,7 +208,7 @@ class GradABM:
             self.agents_infected_time,
             self.agents_next_stage_times,
             t,
-            self.device,
+            # self.device,
         )
 
     def init_infected_tensors(
@@ -254,22 +220,20 @@ class GradABM:
             initial_infected_percentage,
             self.initial_infected_ids,
             self.agents_id,
-            self.device,
+            # self.device,
         )
-        self.agents_next_stage_times = (
-            self.progression_wrapper.init_agents_next_stage_time(
-                self.current_stages,
-                infected_to_recovered_or_dead_time,
-                self.device,
-            ).float()
-        )
+        self.agents_next_stage_times = self.progression_wrapper.init_agents_next_stage_time(
+            self.current_stages,
+            infected_to_recovered_or_dead_time,
+            # self.device,
+        ).float()
 
         self.agents_infected_index = (
             self.current_stages == STAGE_INDEX["infected"]
-        ).to(self.device)
+        ).to(DEVICE)
 
         self.agents_infected_time = self.progression_wrapper.init_infected_time(
-            self.current_stages, self.device
+            self.current_stages,  # self.device
         ).float()
 
     def print_debug_info(
@@ -333,7 +297,7 @@ class GradABM:
             scale,
             infection_gamma_scaling_factor,
             int(max_infectiousness_timesteps),
-        ).to(self.device)
+        ).to(DEVICE)
 
     def step(
         self,
@@ -435,11 +399,11 @@ class GradABM:
         )
 
         self.agents_infected_index = (
-            (next_stages == STAGE_INDEX["infected"]).bool().to(self.device)
+            (next_stages == STAGE_INDEX["infected"]).bool().to(DEVICE)
         )
 
         # self.agents_infected_index = (
-        #    (self.current_stages == STAGE_INDEX["infected"]).bool().to(self.device)
+        #    (self.current_stages == STAGE_INDEX["infected"]).bool().to(DEVICE)
         # )
         # self.agents_infected_index[recovered_dead_now.bool()] = False
         self.agents_infected_time[newly_exposed_today.bool()] = (
@@ -456,7 +420,7 @@ class GradABM:
 
         gamma_dist = torch_gamma(concentration=a, rate=1 / b)
 
-        res = gamma_dist.log_prob(torch.tensor(range(total_t))).exp().to(self.device)
+        res = gamma_dist.log_prob(torch.tensor(range(total_t))).exp().to(DEVICE)
 
         if infection_gamma_scaling_factor is not None:
             res_factor = infection_gamma_scaling_factor / max(res.tolist())
@@ -465,21 +429,102 @@ class GradABM:
         return res
 
 
+def build_abm(
+    all_agents: DataFrame,
+    all_interactions: dict,
+    infection_cfg: dict,
+    cfg_update: None or dict = None,
+):
+    """build simulator: ABM
+
+    Args:
+        all_agents (DataFrame): All agents data
+        all_interactions (dict): Interaction data in a dict
+        infection_cfg (dict): Configuration for infection (under training cfg)
+        cfg_update (Noneordict): Configuration to update (e.g., used for prediction)
+    """
+
+    def _updated_predict_cfg(params: dict, predict_cfg: None or dict) -> dict:
+        """If it is a prediction, update the configuration
+
+        Args:
+            params (dict): original parameters
+            predict_cfg (Noneordict): configuration related to prediction
+
+        Raises:
+            Exception: _description_
+
+        Returns:
+            dict: Updated prediction configuration
+        """
+        if predict_cfg is not None:
+            for param_key in [
+                "use_random_infection",
+                "scaling_factor_update",
+                "outbreak_ctl_update",
+                "initial_infected_ids",
+            ]:
+                try:
+                    if param_key == "initial_infected_ids":
+                        initial_infected_ids_cfg = predict_cfg["initial_infected_ids"]
+                        all_infected_ids = []
+                        for proc_agent in initial_infected_ids_cfg:
+                            if isinstance(proc_agent, str):
+                                if proc_agent.endswith("csv"):
+                                    proc_data = pandas_read_csv(proc_agent)
+                                    all_infected_ids.extend(list(proc_data["id"]))
+                                else:
+                                    raise Exception(
+                                        "Not able to get the cfg for initial_infected_ids"
+                                    )
+                            else:
+                                all_infected_ids.append(proc_agent)
+                        params[param_key] = all_infected_ids
+                    else:
+                        params[param_key] = predict_cfg[param_key]
+                except (KeyError, TypeError):
+                    params[param_key] = None
+
+        return params
+
+    params = {
+        "all_agents": all_agents,
+        "all_interactions": all_interactions,
+        "infection_cfg": infection_cfg,
+        "scaling_factor_update": None,
+        "outbreak_ctl_update": None,
+        "initial_infected_ids": None,
+        "use_random_infection": None,
+    }
+
+    params = _updated_predict_cfg(params, cfg_update)
+    abm = GradABM(params)
+
+    return abm
+
+
 def init_abm(
     model_inputs: dict,
     cfg: dict,
     prerun_params: list or None = None,
-):
+) -> dict:
+    """Initiaite an ABM model
+
+    Args:
+        model_inputs (dict): ABM model inputs in a dict
+        cfg (dict): Training configuration
+        prerun_params (listorNone, optional): Pre-run parameters. Defaults to None.
+
+    Returns:
+        dict: Initial ABM model
+    """
     logger.info("Building ABM ...")
     abm = build_abm(
-        model_inputs["all_agents"],
-        model_inputs["all_interactions"],
-        cfg["infection"],
-        None,
+        model_inputs["all_agents"], model_inputs["all_interactions"], cfg["infection"]
     )
 
     logger.info("Creating initial parameters (to be trained) ...")
-    param_model = create_param_model(
+    param_model = build_param_model(
         obtain_param_cfg(cfg["learnable_params"], prerun_params),
         OPTIMIZATION_CFG["use_temporal_params"],
     )
@@ -499,98 +544,3 @@ def init_abm(
         "model": abm,
         "loss_def": loss_def,
     }
-
-
-def forward_abm(
-    param_values_all,
-    param_info,
-    abm,
-    training_num_steps,
-    save_records: bool = False,
-):
-    predictions = []
-    all_records = []
-    all_target_indices = []
-
-    param_values_all = param_values_all.to(abm.device)
-
-    for time_step in range(training_num_steps):
-        if OPTIMIZATION_CFG["use_temporal_params"]:
-            param_values = param_values_all[0, time_step, :].to(abm.device)
-        else:
-            param_values = param_values_all
-
-        proc_record, target_indices, pred_t = abm.step(
-            time_step,
-            param_values,
-            param_info,
-            training_num_steps,
-            debug=False,
-            save_records=save_records,
-            print_step_info=True,
-        )
-        pred_t = pred_t.type(torch.float64)
-        predictions.append(pred_t.to(DEVICE))
-        all_records.append(proc_record)
-        all_target_indices.append(target_indices)
-
-    predictions = torch.stack(predictions, 0).reshape(1, -1)
-
-    if any(item is None for item in all_records):
-        all_records = None
-    else:
-        all_records = array(all_records)
-
-    return {
-        "prediction": predictions,
-        "all_records": all_records,
-        "all_target_indices": all_target_indices,
-        "agents_area": abm.agents_area.tolist(),
-        "agents_ethnicity": abm.agents_ethnicity.tolist(),
-    }
-
-
-def build_abm(
-    all_agents, all_interactions, infection_cfg: dict, cfg_update: None or dict
-):
-    """build simulator: ABM or ODE"""
-    params = {
-        "all_agents": all_agents,
-        "all_interactions": all_interactions,
-        "infection_cfg": infection_cfg,
-        "scaling_factor_update": None,
-        "outbreak_ctl_update": None,
-        "initial_infected_ids": None,
-        "use_random_infection": None,
-    }
-
-    if cfg_update is not None:
-        for param_key in [
-            "use_random_infection",
-            "scaling_factor_update",
-            "outbreak_ctl_update",
-            "initial_infected_ids",
-        ]:
-            try:
-                if param_key == "initial_infected_ids":
-                    initial_infected_ids_cfg = cfg_update["initial_infected_ids"]
-                    all_infected_ids = []
-                    for proc_agent in initial_infected_ids_cfg:
-                        if isinstance(proc_agent, str):
-                            if proc_agent.endswith("csv"):
-                                proc_data = pandas_read_csv(proc_agent)
-                                all_infected_ids.extend(list(proc_data["id"]))
-                            else:
-                                raise Exception(
-                                    "Not able to get the cfg for initial_infected_ids"
-                                )
-                        else:
-                            all_infected_ids.append(proc_agent)
-                    params[param_key] = all_infected_ids
-                else:
-                    params[param_key] = cfg_update[param_key]
-            except (KeyError, TypeError):
-                params[param_key] = None
-    abm = GradABM(params)
-
-    return abm

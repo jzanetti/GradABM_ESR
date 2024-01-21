@@ -15,37 +15,11 @@ from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
 from process.input import LOC_INDEX
-from process.model import DEVICE, TORCH_SEED_NUM
+from process.model import TORCH_SEED_NUM
+from process.model.policy import school_closure
 from utils.utils import create_random_seed
 
 logger = getLogger()
-
-
-def school_closure(infected_idx, edge_attr, school_closure_cfg):
-    school_closure_sf = numpy_ones(len(infected_idx))
-
-    if not school_closure_cfg["enable"]:
-        return torch_tensor(school_closure_sf).to(DEVICE)
-
-    infected_idx_index = numpy_where(infected_idx.cpu().detach().numpy() == True)[0]
-
-    if len(infected_idx_index) > 0:
-        school_index = numpy_where(
-            edge_attr[0, :].cpu().detach().numpy() == LOC_INDEX["school"]
-        )[0]
-
-        overlap_index = numpy_intersect1d(infected_idx_index, school_index)
-        schools_to_shutdown = edge_attr[2, :][overlap_index].unique().cpu().detach()
-
-        potential_indices = numpy_where(
-            numpy_isin(edge_attr[2].cpu().detach().numpy(), schools_to_shutdown)
-        )[0]
-        schools_to_shutdown_indices = numpy_intersect1d(school_index, potential_indices)
-        school_closure_sf[schools_to_shutdown_indices] *= school_closure_cfg[
-            "scaling_factor"
-        ]
-
-    return torch_tensor(school_closure_sf).to(DEVICE)
 
 
 def infected_case_isolation(
@@ -221,7 +195,7 @@ class GNN_model(MessagePassing):
         SFSusceptibility_ethnicity,
         SFSusceptibility_vaccine,
         SFInfector,
-        device,
+        # device,
     ):
         super(GNN_model, self).__init__(aggr="add")
         self.lam = lam
@@ -231,7 +205,7 @@ class GNN_model(MessagePassing):
         self.SFSusceptibility_vaccine = SFSusceptibility_vaccine
         self.SFInfector = SFInfector
         # self.lam_gamma_integrals = lam_gamma_integrals
-        self.device = device
+        # self.device = device
 
     def forward(
         self,

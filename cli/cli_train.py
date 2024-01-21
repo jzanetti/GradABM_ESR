@@ -12,14 +12,10 @@ from os import makedirs
 from os.path import exists, join
 
 from process.model import INITIAL_LOSS, PRERUN_NUM_EPOCHS, PRINT_INCRE
-from process.model.abm import build_abm, forward_abm, init_abm
+from process.model.abm import build_abm, init_abm
 from process.model.diags import save_outputs
 from process.model.loss_func import get_loss_func, loss_optimization
-from process.model.param import (
-    create_param_model,
-    obtain_param_cfg,
-    param_model_forward,
-)
+from process.model.param import build_param_model, obtain_param_cfg, param_model_forward
 from process.model.postp import postproc_train
 from process.model.prep import (
     prep_env,
@@ -27,6 +23,7 @@ from process.model.prep import (
     prep_wrapper,
     update_params_for_prerun,
 )
+from process.model.wrapper import run_gradabm_wrapper
 from utils.utils import get_params_increments, read_cfg, setup_logging
 
 prep_wrapper
@@ -126,10 +123,9 @@ def main(
     smallest_loss = INITIAL_LOSS
     for epi in range(abm["num_epochs"]):
         param_values_all = param_model_forward(
-            abm["param_model"],
-            model_inputs["target"],
+            abm["param_model"], model_inputs["target"]
         )
-        predictions = forward_abm(
+        predictions = run_gradabm_wrapper(
             param_values_all,
             abm["param_model"].param_info(),
             abm["model"],

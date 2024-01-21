@@ -17,10 +17,11 @@ from os.path import exists, join
 
 from torch.cuda import empty_cache
 
-from process.model.abm import build_abm, forward_abm
+from process.model.abm import build_abm
 from process.model.diags import load_outputs, plot_diags
 from process.model.postp import postproc_pred, write_output
 from process.model.prep import prep_model_inputs
+from process.model.wrapper import run_gradabm_wrapper
 from utils.utils import read_cfg, setup_logging
 
 
@@ -164,7 +165,7 @@ def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
     )
 
     logger.info("Creating prediction ...")
-    predictions = forward_abm(
+    predictions = run_gradabm_wrapper(
         trained_output["param"]["param_with_smallest_loss"],
         trained_output["param_model"].param_info(),
         abm,

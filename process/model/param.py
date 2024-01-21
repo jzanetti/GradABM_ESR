@@ -5,7 +5,6 @@ from torch import zeros as torch_zeros
 from yaml import safe_load as yaml_load
 
 from process.model import DEVICE, OPTIMIZATION_CFG, USE_RNN
-from utils.utils import read_cfg
 
 
 def param_model_forward(param_model, target):
@@ -25,7 +24,23 @@ def obtain_param_cfg(learnable_params_cfg: dict, prerun_params: dict) -> dict:
     return learnable_params_cfg
 
 
-def create_param_model(learnable_param: dict, use_temporal_params: bool):
+def build_param_model(learnable_param: dict, use_temporal_params: bool):
+    """Building parameters model
+
+    Args:
+        learnable_param (dict): learnable paramters, e.g.,
+            {
+                'vaccine_efficiency_spread': {'enable': True, 'min': 0.1, 'max': 0.5, 'default': 0.25},
+                 ......
+                'random_infected_percentgae': {'enable': True, 'min': 0.01, 'max': 0.15, 'default': 0.06},
+                'exposed_to_infected_time': ...
+                ....
+            }
+        use_temporal_params (bool): If use temporal parameters
+
+    Returns:
+        _type_: _description_
+    """
     params = get_params(learnable_param)
 
     if use_temporal_params:
