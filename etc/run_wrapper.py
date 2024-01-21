@@ -69,7 +69,7 @@ if run_prerun:
             all_lost[proc_param_key].append(proc_prep_param[proc_param_key])
         all_lost["lost"].append(proc_pre_run_lost)
 
-    DataFrame(all_lost).to_csv("prerun_stats.csv", index=False)
+    DataFrame(all_lost).sort_values(by="lost").to_csv("prerun_stats.csv", index=False)
     print("Prerun: done")
 
 
