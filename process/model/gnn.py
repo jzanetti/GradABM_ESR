@@ -86,11 +86,7 @@ def lam(
     t,
     vaccine_efficiency_spread,
     contact_tracing_coverage,
-    SFSusceptibility_age,
-    SFSusceptibility_sex,
-    SFSusceptibility_ethnicity,
-    SFSusceptibility_vaccine,
-    SFInfector,
+    scaling_factor,
     lam_gamma_integrals,
     outbreak_ctl_cfg,
     perturbation_flag,
@@ -119,9 +115,9 @@ def lam(
     else:
         SFSusceptibility_vaccine = vaccine_efficiency_spread * x_i[:, 3].long()
     S_A_s = (
-        SFSusceptibility_age[x_i[:, 0].long()]
-        * SFSusceptibility_sex[x_i[:, 1].long()]
-        * SFSusceptibility_ethnicity[x_i[:, 2].long()]
+        scaling_factor["age"][x_i[:, 0].long()]
+        * scaling_factor["gender"][x_i[:, 1].long()]
+        * scaling_factor["ethnicity"][x_i[:, 2].long()]
         * SFSusceptibility_vaccine
     )  # age * sex * ethnicity dependant * vaccine
 
@@ -130,7 +126,7 @@ def lam(
     # A_s_i is calculated based on the stage (x_j[:, 4]) of the target node x_j.
     #  It seems to represent an infectivity factor related to the stage.
     # --------------------------------------------------
-    A_s_i = SFInfector[x_j[:, 4].long()]  # stage dependant
+    A_s_i = scaling_factor["symptom"][x_j[:, 4].long()]  # stage dependant
 
     B_n = edge_attr[1, :]
     integrals = torch_zeros_like(B_n)
@@ -190,20 +186,20 @@ class GNN_model(MessagePassing):
 
     def __init__(
         self,
-        SFSusceptibility_age,
-        SFSusceptibility_sex,
-        SFSusceptibility_ethnicity,
-        SFSusceptibility_vaccine,
-        SFInfector,
+        scaling_factor_age,
+        scaling_factor_gender,
+        scaling_factor_ethnicity,
+        scaling_factor_vaccine,
+        scaling_factor_symptom,
         # device,
     ):
         super(GNN_model, self).__init__(aggr="add")
         self.lam = lam
-        self.SFSusceptibility_age = SFSusceptibility_age
-        self.SFSusceptibility_sex = SFSusceptibility_sex
-        self.SFSusceptibility_ethnicity = SFSusceptibility_ethnicity
-        self.SFSusceptibility_vaccine = SFSusceptibility_vaccine
-        self.SFInfector = SFInfector
+        self.scaling_factor_age = scaling_factor_age
+        self.scaling_factor_gender = scaling_factor_gender
+        self.scaling_factor_ethnicity = scaling_factor_ethnicity
+        self.scaling_factor_vaccine = scaling_factor_vaccine
+        self.scaling_factor_symptom = scaling_factor_symptom
         # self.lam_gamma_integrals = lam_gamma_integrals
         # self.device = device
 
@@ -269,11 +265,13 @@ class GNN_model(MessagePassing):
             t=t,
             vaccine_efficiency_spread=vaccine_efficiency_spread,
             contact_tracing_coverage=contact_tracing_coverage,
-            SFSusceptibility_age=self.SFSusceptibility_age,
-            SFSusceptibility_sex=self.SFSusceptibility_sex,
-            SFSusceptibility_ethnicity=self.SFSusceptibility_ethnicity,
-            SFSusceptibility_vaccine=self.SFSusceptibility_vaccine,
-            SFInfector=self.SFInfector,
+            scaling_factor={
+                "age": self.scaling_factor_age,
+                "gender": self.scaling_factor_gender,
+                "ethnicity": self.scaling_factor_ethnicity,
+                "symptom": self.scaling_factor_symptom,
+                "vaccine": self.scaling_factor_vaccine,
+            },
             lam_gamma_integrals=lam_gamma_integrals,
             outbreak_ctl_cfg=outbreak_ctl_cfg,
             perturbation_flag=perturbation_flag,
@@ -287,11 +285,7 @@ class GNN_model(MessagePassing):
         t,
         vaccine_efficiency_spread,
         contact_tracing_coverage,
-        SFSusceptibility_age,
-        SFSusceptibility_sex,
-        SFSusceptibility_ethnicity,
-        SFSusceptibility_vaccine,
-        SFInfector,
+        scaling_factor,
         lam_gamma_integrals,
         outbreak_ctl_cfg,
         perturbation_flag,
@@ -304,11 +298,7 @@ class GNN_model(MessagePassing):
             t,
             vaccine_efficiency_spread,
             contact_tracing_coverage,
-            SFSusceptibility_age,
-            SFSusceptibility_sex,
-            SFSusceptibility_ethnicity,
-            SFSusceptibility_vaccine,
-            SFInfector,
+            scaling_factor,
             lam_gamma_integrals,
             outbreak_ctl_cfg,
             perturbation_flag,

@@ -153,6 +153,7 @@ class GradABM:
         )
 
         # print(t, f"before: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
+        # self.gnn_model goes to forward() in gnn_model function
         lam_t = self.gnn_model(
             agents_data,
             lam_gamma_integrals,
