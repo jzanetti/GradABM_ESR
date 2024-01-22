@@ -1,16 +1,30 @@
 import torch
 from numpy import array as numpy_array
+from torch import Tensor as torch_tensor
 
 from process.model import DEVICE, OPTIMIZATION_CFG
+from process.model.abm import GradABM
 
 
 def run_gradabm_wrapper(
-    param_values_all,
-    param_info,
-    abm,
-    training_num_steps,
+    abm: GradABM,
+    param_values_all: torch_tensor,
+    param_info: dict,
+    training_num_steps: int,
     save_records: bool = False,
 ):
+    """Run GradABM ESR wrapper
+
+    Args:
+        abm (GradABM): GradABM model
+        param_values_all (torch_tensor): _description_
+        param_info (dict): _description_
+        training_num_steps (int): _description_
+        save_records (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
     predictions = []
     all_records = []
     all_target_indices = []

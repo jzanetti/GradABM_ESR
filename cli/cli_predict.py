@@ -22,7 +22,7 @@ from process.model.diags import load_outputs, plot_diags
 from process.model.postp import postproc_pred, write_output
 from process.model.prep import prep_model_inputs
 from process.model.wrapper import run_gradabm_wrapper
-from utils.utils import read_cfg, setup_logging
+from process.utils.utils import read_cfg, setup_logging
 
 
 def get_example_usage():
@@ -153,7 +153,6 @@ def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
         target_data,
         cfg["train"]["interaction"],
         cfg["train"]["target"],
-        cfg["train"]["interaction_ratio"],
     )
 
     logger.info("Building ABM ...")
@@ -161,14 +160,15 @@ def main(workdir, cfg, model_base_dir, proc_exp, model_id, ens_id):
         model_inputs["all_agents"],
         model_inputs["all_interactions"],
         cfg["train"]["infection"],
-        cfg["predict"][proc_exp],
+        cfg["train"]["outbreak_ctl"],
+        cfg_update=cfg["predict"][proc_exp],
     )
 
     logger.info("Creating prediction ...")
     predictions = run_gradabm_wrapper(
+        abm,
         trained_output["param"]["param_with_smallest_loss"],
         trained_output["param_model"].param_info(),
-        abm,
         trained_output["output_info"]["total_timesteps"],
         save_records=True,
     )

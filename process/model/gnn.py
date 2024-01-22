@@ -1,11 +1,6 @@
 from logging import getLogger
 from random import uniform as random_uniform
 
-from numpy import intersect1d as numpy_intersect1d
-from numpy import isin as numpy_isin
-from numpy import ones as numpy_ones
-from numpy import where as numpy_where
-from torch import gather as torch_gather
 from torch import manual_seed as torch_seed
 from torch import nonzero as torch_nonzero
 from torch import ones_like as torch_ones_like
@@ -14,10 +9,8 @@ from torch import tensor as torch_tensor
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
-from process.input import LOC_INDEX
 from process.model import TORCH_SEED_NUM
 from process.model.policy import school_closure
-from utils.utils import create_random_seed
 
 logger = getLogger()
 
@@ -99,8 +92,6 @@ def lam(
     self.current_stages.detach(),  # 4: stage
     self.agents_infected_index.to(self.device),  # 5: infected index
     self.agents_infected_time.to(self.device),  # 6: infected time
-    *self.agents_mean_interactions_mu_split,  # 7 to 29: represents the number of venues where agents can interact with each other
-    torch.arange(self.params["num_agents"]).to(self.device),  # Agent ids (30)
     """
 
     # --------------------------------------------------
@@ -110,36 +101,35 @@ def lam(
     # It seems to depend on the age, sex, ethnicity,
     # and vaccination status of the source node x_i.
     # --------------------------------------------------
+    vaccine_index = x_i[:, 3].long()
     if t == -1:
-        SFSusceptibility_vaccine = torch_ones_like(x_i[:, 3].long())
+        scaling_factor_vaccine = torch_ones_like(vaccine_index)
     else:
-        SFSusceptibility_vaccine = vaccine_efficiency_spread * x_i[:, 3].long()
+        scaling_factor_vaccine = (
+            torch_tensor(
+                scaling_factor["vaccine"].tolist(), device=vaccine_index.device
+            )[vaccine_index]
+            * vaccine_efficiency_spread
+        )
     S_A_s = (
         scaling_factor["age"][x_i[:, 0].long()]
         * scaling_factor["gender"][x_i[:, 1].long()]
         * scaling_factor["ethnicity"][x_i[:, 2].long()]
-        * SFSusceptibility_vaccine
+        * scaling_factor_vaccine
     )  # age * sex * ethnicity dependant * vaccine
 
     # --------------------------------------------------
-    # Step 2:
-    # A_s_i is calculated based on the stage (x_j[:, 4]) of the target node x_j.
+    # Step 2: A_s_i is calculated based on the stage (x_j[:, 4]) of the target node x_j.
     #  It seems to represent an infectivity factor related to the stage.
     # --------------------------------------------------
     A_s_i = scaling_factor["symptom"][x_j[:, 4].long()]  # stage dependant
 
-    B_n = edge_attr[1, :]
-    integrals = torch_zeros_like(B_n)
-    # infected_idx = x_j[:, 5].bool()
-    # infected_idx = x_j[:, 4].long() == 4.0
-    # infected_idx_length = infected_idx.tolist().count(True)
-    # if infected_idx_length == 0:
+    # --------------------------------------------------
+    # Step 3: Scaling factor depending on the infection time
+    # --------------------------------------------------
+    integrals = torch_zeros_like(S_A_s)
     infected_idx = x_j[:, 4].long() == 2.0
-
     infected_times = t - x_j[infected_idx, 6]
-    # infected_idx2 = x_j[:, 4].long() == 4.0
-    # print(infected_idx.tolist().count(True), infected_idx2.tolist().count(True))
-
     integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
 
     # Isolate infected cases
@@ -160,20 +150,20 @@ def lam(
             infected_idx, edge_attr, outbreak_ctl_cfg["school_closure"]
         )
 
-    edge_network_numbers = edge_attr[
-        0, :
-    ]  # to account for the fact that mean interactions start at 4th position of x
-    I_bar = torch_gather(x_i[:, 7:30], 1, edge_network_numbers.view(-1, 1).long()).view(
-        -1
-    )
-
     if perturbation_flag:
         R = random_uniform(0.7, 1.3)
     else:
         R = 1.0
 
     res = (
-        R * S_A_s * A_s_i * B_n * integrals * isolated_sf * school_closure_sf / I_bar
+        R
+        * S_A_s
+        * A_s_i
+        * edge_attr[2, :]
+        * integrals
+        * isolated_sf
+        * school_closure_sf
+        / edge_attr[1, :]
     )  # Edge attribute 1 is B_n
 
     # print(t, integrals[infected_idx].sum(), res.sum())
@@ -290,7 +280,6 @@ class GNN_model(MessagePassing):
         outbreak_ctl_cfg,
         perturbation_flag,
     ):
-        # x_j has shape [E, in_channels]
         tmp = self.lam(
             x_i,
             x_j,

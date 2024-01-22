@@ -23,9 +23,9 @@ GENDER_INDEX = {"male": 0, "female": 1}
 
 VACCINE_INDEX = {"yes": 1, "no": 0}
 
-TRAINING_ENS_MEMBERS = 1
+TRAINING_ENS_MEMBERS = 10  # 10
 
-RANDOM_ENSEMBLES = 2
+RANDOM_ENSEMBLES = 15  # 1
 
 # ---------------------------------
 # Raw data information

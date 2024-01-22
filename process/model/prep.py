@@ -8,7 +8,7 @@ from torch.autograd import set_detect_anomaly
 
 from process.model import PRERUN_PARAMS_NUM
 from process.model.inputs import create_agents, create_interactions, train_data_wrapper
-from utils.utils import read_cfg
+from process.utils.utils import read_cfg
 
 logger = getLogger()
 
@@ -46,35 +46,6 @@ def prep_wrapper(
 
     return model_inputs, cfg
 
-    logger.info("Prep4: Building ABM ...")
-    abm = build_abm(
-        model_inputs["all_agents"],
-        model_inputs["all_interactions"],
-        cfg["infection"],
-        None,
-    )
-
-    logger.info("Creating initial parameters (to be trained) ...")
-
-    param_model = create_param_model(
-        obtain_param_cfg(cfg["learnable_params"], prerun_params),
-        cfg["optimization"]["use_temporal_params"],
-    )
-
-    logger.info("Creating loss function ...")
-    loss_def = get_loss_func(
-        param_model, model_inputs["total_timesteps"], cfg["optimization"]
-    )
-    epoch_loss_list = []
-    param_values_list = []
-    smallest_loss = INITIAL_LOSS
-
-    if prerun_params:
-        num_epochs = PRERUN_NUM_EPOCHS
-        cfg = update_params_for_prerun(cfg)
-    else:
-        num_epochs = cfg["optimization"]["num_epochs"]
-
 
 def prep_env():
     """Prepare model running environment"""
@@ -87,7 +58,7 @@ def update_params_for_prerun(cfg: dict):
     # cfg["optimization"][
     #    "use_temporal_params"
     # ] = False  # to speed up the training by avoiding temporal params
-    cfg["infection"]["outbreak_ctl"]["school_closure"][
+    cfg["outbreak_ctl"]["school_closure"][
         "enable"
     ] = False  # school closure is usally very slow
     return cfg

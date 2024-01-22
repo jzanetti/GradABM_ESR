@@ -5,24 +5,19 @@ from logging import getLogger
 
 import torch
 import torch.nn.functional as F
-from numpy import array, isnan, where
-from numpy.random import choice
+from numpy import isnan
 from pandas import DataFrame
 from pandas import read_csv as pandas_read_csv
-from scipy.stats import gamma as stats_gamma
 from torch import manual_seed as torch_seed
 from torch import ones_like as torch_ones_like
 from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
-from torch_geometric.nn import MessagePassing
 
 from process.model import (
     ALL_PARAMS,
     DEVICE,
-    INITIAL_LOSS,
     OPTIMIZATION_CFG,
     PRERUN_NUM_EPOCHS,
-    PRINT_INCRE,
     STAGE_INDEX,
     TORCH_SEED_NUM,
 )
@@ -31,7 +26,7 @@ from process.model.loss_func import get_loss_func, loss_optimization
 from process.model.param import build_param_model, obtain_param_cfg, param_model_forward
 from process.model.prep import update_params_for_prerun
 from process.model.progression import Progression_model
-from utils.utils import create_random_seed, round_a_list
+from process.utils.utils import round_a_list
 
 logger = getLogger()
 
@@ -52,34 +47,28 @@ class GradABM:
         # -----------------------------
         # Step 3: set up interaction
         # -----------------------------
-        all_interactions = params["all_interactions"]
-        self.agents_mean_interactions_mu = all_interactions[
-            "agents_mean_interactions_mu"
-        ]
-        self.agents_mean_interactions_mu_split = all_interactions[
-            "agents_mean_interactions_mu_split"
-        ]
-        self.all_edgelist = all_interactions["all_edgelist"]
-        self.all_edgeattr = all_interactions["all_edgeattr"]
+        self.all_edgelist = params["all_interactions"]["all_edgelist"]
+        self.all_edgeattr = params["all_interactions"]["all_edgeattr"]
 
         # -----------------------------
         # Step 4: set up prediction configuration
         # -----------------------------
-        self.initial_infected_ids = params["initial_infected_ids"]
+        self.initial_infected_ids = params["predict_update"][
+            "initial_infected_ids_update"
+        ]
         self.use_random_infection = True
-        if params["use_random_infection"] is not None:
-            self.use_random_infection = params["use_random_infection"]
+        if params["predict_update"]["use_random_infection_update"] is not None:
+            self.use_random_infection = params["predict_update"][
+                "use_random_infection_update"
+            ]
 
-        self.outbreak_ctl_update = params["outbreak_ctl_update"]
-        try:
-            self.outbreak_ctl_cfg = self.outbreak_ctl_update["outbreak_ctl"]
-        except (KeyError, TypeError):
-            self.outbreak_ctl_cfg = params["infection_cfg"]["outbreak_ctl"]
+        self.outbreak_ctl_cfg = params["outbreak_ctl_cfg"]
+        if params["predict_update"]["outbreak_ctl_cfg_update"] is not None:
+            self.outbreak_ctl_cfg = params["predict_update"]["outbreak_ctl_cfg_update"]
 
-        try:
-            self.perturbation = self.outbreak_ctl_update["perturbation"]
-        except (KeyError, TypeError):
-            self.perturbation = False
+        self.perturbation = False
+        if params["predict_update"]["perturbation_update"] is not None:
+            self.perturbation = params["predict_update"]["perturbation_update"]
 
         # -----------------------------
         # Step 5: set up scaling_factor
@@ -87,9 +76,13 @@ class GradABM:
         for attr in ["age", "symptom", "ethnicity", "gender", "vaccine"]:
             if attr == "vaccine":
                 try:
-                    vaccine_cfg = params["scaling_factor_update"]["vaccine"]
+                    vaccine_cfg = params["predict_update"]["scaling_factor_update"][
+                        "vaccine"
+                    ]
                 except (KeyError, TypeError):
-                    vaccine_cfg = params["infection_cfg"]["scaling_factor"]["vaccine"]
+                    vaccine_cfg = params["infection_cfg"]["scaling_factor"][
+                        "vaccine_dependant"
+                    ]
                 params["infection_cfg"]["scaling_factor"][
                     f"{attr}_dependant"
                 ] = vaccine_cfg
@@ -137,8 +130,6 @@ class GradABM:
                 self.current_stages.detach(),  # 4: stage
                 self.agents_infected_index.to(DEVICE),  # 5: infected index
                 self.agents_infected_time.to(DEVICE),  # 6: infected time
-                *self.agents_mean_interactions_mu_split,  # 7 to 29: represents the number of venues where agents can interact with each other
-                torch.arange(self.num_agents).to(DEVICE),  # Agent ids (30)
             )
         ).t()
 
@@ -149,7 +140,6 @@ class GradABM:
             vaccine_efficiency_spread=vaccine_efficiency_spread,
             contact_tracing_coverage=contact_tracing_coverage,
             t=t,
-            agents_mean_interactions=self.agents_mean_interactions_mu,
         )
 
         # print(t, f"before: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
@@ -221,20 +211,20 @@ class GradABM:
             initial_infected_percentage,
             self.initial_infected_ids,
             self.agents_id,
-            # self.device,
         )
-        self.agents_next_stage_times = self.progression_wrapper.init_agents_next_stage_time(
-            self.current_stages,
-            infected_to_recovered_or_dead_time,
-            # self.device,
-        ).float()
+        self.agents_next_stage_times = (
+            self.progression_wrapper.init_agents_next_stage_time(
+                self.current_stages,
+                infected_to_recovered_or_dead_time,
+            ).float()
+        )
 
         self.agents_infected_index = (
             self.current_stages == STAGE_INDEX["infected"]
         ).to(DEVICE)
 
         self.agents_infected_time = self.progression_wrapper.init_infected_time(
-            self.current_stages,  # self.device
+            self.current_stages
         ).float()
 
     def print_debug_info(
@@ -434,6 +424,7 @@ def build_abm(
     all_agents: DataFrame,
     all_interactions: dict,
     infection_cfg: dict,
+    outbreak_ctl_cfg: dict,
     cfg_update: None or dict = None,
 ):
     """build simulator: ABM
@@ -460,9 +451,10 @@ def build_abm(
         """
         if predict_cfg is not None:
             for param_key in [
+                "perturbation",
                 "use_random_infection",
-                "scaling_factor_update",
-                "outbreak_ctl_update",
+                "scaling_factor",
+                "outbreak_ctl",
                 "initial_infected_ids",
             ]:
                 try:
@@ -480,11 +472,15 @@ def build_abm(
                                     )
                             else:
                                 all_infected_ids.append(proc_agent)
-                        params[param_key] = all_infected_ids
+                        params["predict_update"][
+                            f"{param_key}_update"
+                        ] = all_infected_ids
                     else:
-                        params[param_key] = predict_cfg[param_key]
+                        params["predict_update"][f"{param_key}_update"] = predict_cfg[
+                            param_key
+                        ]
                 except (KeyError, TypeError):
-                    params[param_key] = None
+                    params["predict_update"][f"{param_key}_update"] = None
 
         return params
 
@@ -492,10 +488,14 @@ def build_abm(
         "all_agents": all_agents,
         "all_interactions": all_interactions,
         "infection_cfg": infection_cfg,
-        "scaling_factor_update": None,
-        "outbreak_ctl_update": None,
-        "initial_infected_ids": None,
-        "use_random_infection": None,
+        "outbreak_ctl_cfg": outbreak_ctl_cfg,
+        "predict_update": {
+            "perturbation_update": None,
+            "scaling_factor_update": None,
+            "outbreak_ctl_cfg_update": None,
+            "initial_infected_ids_update": None,
+            "use_random_infection_update": None,
+        },
     }
 
     params = _updated_predict_cfg(params, cfg_update)
@@ -521,7 +521,10 @@ def init_abm(
     """
     logger.info("Building ABM ...")
     abm = build_abm(
-        model_inputs["all_agents"], model_inputs["all_interactions"], cfg["infection"]
+        model_inputs["all_agents"],
+        model_inputs["all_interactions"],
+        cfg["infection"],
+        cfg["outbreak_ctl"],
     )
 
     logger.info("Creating initial parameters (to be trained) ...")

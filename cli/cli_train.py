@@ -11,20 +11,15 @@ import argparse
 from os import makedirs
 from os.path import exists, join
 
-from process.model import INITIAL_LOSS, PRERUN_NUM_EPOCHS, PRINT_INCRE
-from process.model.abm import build_abm, init_abm
+from process.model import INITIAL_LOSS, PRINT_INCRE
+from process.model.abm import init_abm
 from process.model.diags import save_outputs
-from process.model.loss_func import get_loss_func, loss_optimization
-from process.model.param import build_param_model, obtain_param_cfg, param_model_forward
+from process.model.loss_func import loss_optimization
+from process.model.param import param_model_forward
 from process.model.postp import postproc_train
-from process.model.prep import (
-    prep_env,
-    prep_model_inputs,
-    prep_wrapper,
-    update_params_for_prerun,
-)
+from process.model.prep import prep_wrapper
 from process.model.wrapper import run_gradabm_wrapper
-from utils.utils import get_params_increments, read_cfg, setup_logging
+from process.utils.utils import get_params_increments, setup_logging
 
 prep_wrapper
 
@@ -126,9 +121,9 @@ def main(
             abm["param_model"], model_inputs["target"]
         )
         predictions = run_gradabm_wrapper(
+            abm["model"],
             param_values_all,
             abm["param_model"].param_info(),
-            abm["model"],
             model_inputs["total_timesteps"],
             save_records=False,
         )

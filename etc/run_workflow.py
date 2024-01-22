@@ -21,14 +21,14 @@ input_data = {
     "dhb_list": ["Counties Manukau"],
 }
 
-model_cfg_path = "data/measles_v2/base/gradam_exp_vac.yml"
+model_cfg_path = "data/measles_v2/base/namelist.yml"
 vis_cfg_path = "data/measles/base/vis_exp_vac1.yml"
 prd_job_name = "base_exp"
 
 run_input_main = False
-run_prerun = True
+run_prerun = False
 run_model_main = False
-run_predict_main = False
+run_predict_main = True
 run_vis_main = False
 remove_all_old_runs = False
 

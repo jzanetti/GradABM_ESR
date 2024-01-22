@@ -150,28 +150,45 @@ def agent_interaction_wrapper(
     Returns:
         dict: The dict contains agents interactions
     """
-    agents_mean_interactions_mu = 0 * torch_ones(num_agents, len(LOC_INDEX)).to(DEVICE)
-    for network_index in network_type_dict_inv:
-        proc_interaction_mu = (
-            torch_tensor(
-                agents_mean_interaction_cfg[network_type_dict_inv[network_index]]["mu"]
+    agents_mean_interactions_output = {}
+    agents_mean_interactions_split_output = {}
+
+    for proc_key in ["mu", "bn"]:
+        agents_mean_interactions_output[proc_key] = 0 * torch_ones(
+            num_agents, len(LOC_INDEX)
+        ).to(DEVICE)
+        for network_index in network_type_dict_inv:
+            proc_interaction = (
+                torch_tensor(
+                    agents_mean_interaction_cfg[network_type_dict_inv[network_index]][
+                        proc_key
+                    ]
+                )
+                .float()
+                .to(DEVICE)
             )
-            .float()
-            .to(DEVICE)
+
+            agents_mean_interactions_output[proc_key][
+                :, network_index
+            ] = proc_interaction
+
+        agents_mean_interactions_split_output[proc_key] = list(
+            torch_split(agents_mean_interactions_output[proc_key], 1, dim=1)
         )
 
-        agents_mean_interactions_mu[:, network_index] = proc_interaction_mu
-
-    agents_mean_interactions_mu_split = list(
-        torch_split(agents_mean_interactions_mu, 1, dim=1)
-    )
-    agents_mean_interactions_mu_split = [
-        a.view(-1) for a in agents_mean_interactions_mu_split
-    ]
+        agents_mean_interactions_split_output[proc_key] = [
+            a.view(-1) for a in agents_mean_interactions_split_output[proc_key]
+        ]
 
     return {
-        "agents_mean_interactions_mu": agents_mean_interactions_mu,
-        "agents_mean_interactions_mu_split": agents_mean_interactions_mu_split,
+        "agents_mean_interactions_mu": agents_mean_interactions_output["mu"],
+        "agents_mean_interactions_mu_split": agents_mean_interactions_split_output[
+            "mu"
+        ],
+        "agents_mean_interactions_bn": agents_mean_interactions_output["bn"],
+        "agents_mean_interactions_bn_split": agents_mean_interactions_split_output[
+            "bn"
+        ],
     }
 
 
@@ -209,17 +226,8 @@ def create_interactions(
     for proc_type in LOC_INDEX:
         network_type_dict[proc_type] = LOC_INDEX[proc_type]
 
-    network_type_dict_inv = {value: key for key, value in network_type_dict.items()}
-
     # ----------------------------
-    # Get agents interaction intensity
-    # ----------------------------
-    agent_interaction_data = agent_interaction_wrapper(
-        interaction_cfg["venues"], network_type_dict_inv, num_agents
-    )
-
-    # ----------------------------
-    # Get edges interaction intensity
+    # Get edges interaction intensity and frequency
     # ----------------------------
     if interaction_graph_path.endswith("csv"):
         create_bidirection = True
@@ -234,25 +242,18 @@ def create_interactions(
         frac=interaction_cfg["interaction_ratio"]
     )
 
-    agents_mean_interactions_bn = {}
+    agents_mean_interactions = {"bn": {}, "mu": {}}
     for network_name in network_type_dict:
-        agents_mean_interactions_bn[network_type_dict[network_name]] = interaction_cfg[
-            "venues"
-        ][network_name]["bn"]
+        for proc_interaction_key in list(agents_mean_interactions.keys()):
+            agents_mean_interactions[proc_interaction_key][
+                network_type_dict[network_name]
+            ] = interaction_cfg["venues"][network_name][proc_interaction_key]
 
     all_edgelist, all_edgeattr = init_interaction_graph(
-        edges_mean_interaction_cfg, agents_mean_interactions_bn, create_bidirection
+        edges_mean_interaction_cfg, agents_mean_interactions, create_bidirection
     )
 
     return {
-        "agents_mean_interactions_mu": agent_interaction_data[
-            "agents_mean_interactions_mu"
-        ],
-        "agents_mean_interactions_mu_split": agent_interaction_data[
-            "agents_mean_interactions_mu_split"
-        ],
-        "network_type_dict": network_type_dict,
-        "network_type_dict_inv": network_type_dict_inv,
         "all_edgelist": all_edgelist,
         "all_edgeattr": all_edgeattr,
     }
@@ -260,7 +261,7 @@ def create_interactions(
 
 def init_interaction_graph(
     interaction_graph_cfg: dict,
-    agents_mean_interactions_bn: dict,
+    agents_mean_interactions: dict,
     create_bidirection: bool,
 ) -> tuple:
     """Initialize interaction graph
@@ -309,15 +310,18 @@ def init_interaction_graph(
 
     random_network_edgeattr_type = random_network_edge_all[2, :]
 
-    random_network_edgeattr_B_n = [
-        agents_mean_interactions_bn[key]
-        for key in random_network_edgeattr_type.tolist()
-    ]
+    random_network_edgeattr_value = {}
+    for edgeattr_key in ["mu", "bn"]:
+        random_network_edgeattr_value[edgeattr_key] = [
+            agents_mean_interactions[edgeattr_key][key]
+            for key in random_network_edgeattr_type.tolist()
+        ]
 
     random_network_edgeattr = torch_vstack(
         (
             random_network_edgeattr_type,
-            torch_tensor(random_network_edgeattr_B_n),
+            torch_tensor(random_network_edgeattr_value["mu"]),
+            torch_tensor(random_network_edgeattr_value["bn"]),
         )
     )
 
