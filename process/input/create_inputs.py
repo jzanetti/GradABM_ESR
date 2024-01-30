@@ -62,7 +62,6 @@ def get_diary_data(syn_data_path: str, diary_data_path: str) -> DataFrame:
     )
 
     # there might be private travel which does not have a group value
-    x = 3
     return {
         "agents": agents,
         "interaction": merged_df[["id", "group", "spec", "area"]].dropna(),

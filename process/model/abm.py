@@ -6,6 +6,7 @@ from logging import getLogger
 import torch
 import torch.nn.functional as F
 from numpy import isnan
+from numpy import isnan as numpy_isnan
 from pandas import DataFrame
 from pandas import read_csv as pandas_read_csv
 from torch import manual_seed as torch_seed
@@ -318,7 +319,7 @@ class GradABM:
                     self.agents_infected_time,
                     self.agents_next_stage_times,
                 ) = self.create_random_infected_tensors(
-                    self.proc_params["random_infected_percentgae"],
+                    self.proc_params["random_infected_percentage"],
                     self.proc_params["infected_to_recovered_or_death_time"],
                     t,
                 )
@@ -348,7 +349,7 @@ class GradABM:
 
         if print_step_info:
             print(
-                t,
+                f"  {t}: ",
                 f"exposed: {self.current_stages.tolist().count(1.0)} |",
                 f"infected: {self.current_stages.tolist().count(2.0)} |",
                 f"newly exposed: {int(newly_exposed_today.sum().item())} |",
@@ -370,7 +371,6 @@ class GradABM:
                 target,
                 t,
             )
-
         next_stages = self.progression_wrapper.update_current_stage(
             newly_exposed_today,
             self.current_stages,
@@ -378,6 +378,7 @@ class GradABM:
             death_indices,
             t,
         )
+
         # update times with current_stages
         self.agents_next_stage_times = self.progression_wrapper.update_next_stage_times(
             self.proc_params["exposed_to_infected_time"],
@@ -528,19 +529,20 @@ def init_abm(
     )
 
     logger.info("Creating initial parameters (to be trained) ...")
-    param_model = build_param_model(
-        obtain_param_cfg(cfg["learnable_params"], prerun_params),
-        OPTIMIZATION_CFG["use_temporal_params"],
-    )
-
-    logger.info("Creating loss function ...")
-    loss_def = get_loss_func(param_model, model_inputs["total_timesteps"])
 
     if prerun_params:
         num_epochs = PRERUN_NUM_EPOCHS
         cfg = update_params_for_prerun(cfg)
     else:
         num_epochs = OPTIMIZATION_CFG["num_epochs"]
+
+    param_model = build_param_model(
+        obtain_param_cfg(cfg["learnable_params"], prerun_params),
+        OPTIMIZATION_CFG["num_epochs"],
+    )
+
+    logger.info("Creating loss function ...")
+    loss_def = get_loss_func(param_model, model_inputs["total_timesteps"])
 
     return {
         "num_epochs": num_epochs,

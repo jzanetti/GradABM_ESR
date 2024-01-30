@@ -10,7 +10,9 @@ from cli.cli_vis import main as vis_main
 from process.input import RANDOM_ENSEMBLES, TRAINING_ENS_MEMBERS
 from process.model.prep import get_prerun_params
 
-workdir = "exp/policy_paper"
+# workdir = "exp/policy_paper"
+workdir = "/tmp/gradabm_esr/policy_paper"
+
 
 input_data = {
     "diary_path": "/tmp/gradabm_esr/Auckland/diaries.pickle",
@@ -27,9 +29,9 @@ prd_job_name = "base_exp"
 
 run_input_main = False
 run_prerun = False
-run_model_main = False
+run_model_main = True
 run_predict_main = True
-run_vis_main = False
+run_vis_main = True
 remove_all_old_runs = False
 
 if remove_all_old_runs:
@@ -55,6 +57,8 @@ if run_prerun:
     all_lost = {key: [] for key in all_keys}
     all_lost["lost"] = []
 
+    print(f"All exps to run: {len(all_params)} ...")
+
     for i, proc_prep_param in enumerate(all_params):
         proc_pre_run_lost = train_main(
             join(workdir, "model"),
@@ -69,7 +73,7 @@ if run_prerun:
             all_lost[proc_param_key].append(proc_prep_param[proc_param_key])
         all_lost["lost"].append(proc_pre_run_lost)
 
-    DataFrame(all_lost).sort_values(by="lost").to_csv("prerun_stats.csv", index=False)
+    DataFrame(all_lost).sort_values(by="lost").to_csv("prerun_stats2.csv", index=False)
     print("Prerun: done")
 
 

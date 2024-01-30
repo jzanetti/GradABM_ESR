@@ -1,6 +1,8 @@
 from logging import getLogger
 from random import uniform as random_uniform
 
+from torch import int8 as torch_int8
+from torch import int16 as torch_int16
 from torch import manual_seed as torch_seed
 from torch import nonzero as torch_nonzero
 from torch import ones_like as torch_ones_like
@@ -154,7 +156,9 @@ def lam(
         R = random_uniform(0.7, 1.3)
     else:
         R = 1.0
+    # import torch
 
+    # print(t, f"test1: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
     res = (
         R
         * S_A_s
@@ -201,7 +205,7 @@ class GNN_model(MessagePassing):
         perturbation_flag,
         vis_debug=False,
     ):
-        x = data.x
+        x = data.x.to(dtype=torch_int8)
         edge_index = data.edge_index
         edge_attr = data.edge_attr
         t = data.t

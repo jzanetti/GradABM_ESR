@@ -3,9 +3,9 @@ from abc import ABC, abstractmethod
 import torch.nn.functional as F
 from numpy import arange as numpy_arange
 from numpy import array
-from numpy import array as numpy_array
 from numpy import isin as numpy_isin
 from numpy import isnan
+from numpy import isnan as numpy_isnan
 from numpy import sum as numpy_sum
 from numpy import where
 from numpy import where as numpy_where
@@ -97,6 +97,7 @@ class Progression_model(DiseaseProgression):
 
         agents_stages_with_random_infected *= STAGE_INDEX["infected"]
         agents_stages = agents_stages + agents_stages_with_random_infected
+
         # print(t, agents_stages_with_random_infected.tolist().count(2))
         # Updated infected time:
         agents_infected_time[
@@ -129,12 +130,23 @@ class Progression_model(DiseaseProgression):
             ).to(DEVICE)
             p = torch_hstack((prob_infected, 1 - prob_infected))
             cat_logits = torch_log(p + 1e-9)
-            if TORCH_SEED_NUM is not None:
-                torch_seed(TORCH_SEED_NUM["initial_infected"])
+            tries = 0
+            while True:
+                if TORCH_SEED_NUM is not None:
+                    torch_seed(TORCH_SEED_NUM["initial_infected"])
 
-            agents_stages = F.gumbel_softmax(
-                logits=cat_logits, tau=1, hard=True, dim=1
-            )[:, 0]
+                agents_stages = F.gumbel_softmax(
+                    logits=cat_logits, tau=1, hard=True, dim=1
+                )[:, 0]
+
+                tries += 1
+
+                if tries > 10:
+                    raise Exception("Not able to create initial infected agents ...")
+
+                if not isnan(agents_stages.cpu().clone().detach().numpy()).any():
+                    break
+
             agents_stages *= STAGE_INDEX["infected"]
 
         return agents_stages.to(DEVICE)
@@ -323,5 +335,5 @@ class Progression_model(DiseaseProgression):
         current_stages = (
             newly_exposed_today * STAGE_INDEX["exposed"] + stage_progression
         )
-        # print(after_infected.tolist().count(4.0))
+
         return current_stages

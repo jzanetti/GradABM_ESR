@@ -62,9 +62,9 @@ def setup_parser():
             "--synthetic_pop_path",
             "/tmp/syspop_test/Auckland/syspop_base.csv",
             "--workdir",
-            "/tmp/gradabm_esr/Auckland_v2",
+            "/tmp/gradabm_esr/Auckland_v3",
             "--ncpu",
-            "8",
+            "1",
         ]
     )
 

@@ -9,7 +9,7 @@ ALL_PARAMS = [
     "vaccine_efficiency_symptom",
     "contact_tracing_coverage",
     "initial_infected_percentage",
-    "random_infected_percentgae",
+    "random_infected_percentage",
     "exposed_to_infected_time",
     "infected_to_recovered_or_death_time",
     "infection_gamma_shape",
@@ -28,14 +28,13 @@ STAGE_INDEX = {
 DEVICE = torch_device(f"cuda:0")
 # DEVICE = torch_device("cpu")
 
-"""
-TORCH_SEED_NUM = {
-    "initial_infected": 100,
-    "random_infected": 200,
-    "newly_exposed": 300,
-    "isolation_policy": 400,
-}
-"""
+
+# TORCH_SEED_NUM = {
+#    "initial_infected": 100,
+#    "random_infected": 200,
+#    "newly_exposed": 300,
+#    "isolation_policy": 400,
+# }
 
 
 TORCH_SEED_NUM = None
@@ -53,7 +52,7 @@ SMALL_VALUE = 1e-9
 PRINT_INCRE = True
 
 PRERUN_PARAMS_NUM = 5
-PRERUN_NUM_EPOCHS = 10
+PRERUN_NUM_EPOCHS = 3
 
 OPTIMIZATION_CFG = {
     "basic_lr": 0.1,
