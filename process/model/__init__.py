@@ -29,7 +29,7 @@ SMALL_FIX_VALUE = 1e-9
 
 PRINT_MODEL_INFO = True
 
-PRERUN_CFG = {"params_num": 5, "epochs": 3}
+PRERUN_CFG = {"params_num": 7, "epochs": 3}
 
 OPTIMIZATION_CFG = {
     "opt_method": "sgd",

@@ -9,3 +9,4 @@ log
 *.csv
 .vscode
 data
+etc/dashboard/testdata

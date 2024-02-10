@@ -99,7 +99,7 @@ train:
     vaccine_efficiency_symptom:
       enable: true
       min: 0.001 # 0.001
-      max: 0.02 # 0.05
+      max: 0.03 # 0.05
       default: 0.01 # 0.02 
     contact_tracing_coverage:
       enable: true
@@ -108,8 +108,8 @@ train:
       default: 0.5
     initial_infected_percentage:
       enable: true
-      min: 0.0003
-      max: 0.003
+      min: 0.0001
+      max: 0.007
       default: 0.001
     random_infected_percentage:
       enable: false 
@@ -138,8 +138,8 @@ train:
       default: 10.0
     infection_gamma_scaling_factor: # decide how fast the disease spread
       enable: true
-      min: 0.25  # 0.1
-      max: 0.75 # 1.5
+      min: 0.15  # 0.1
+      max: 1.0 # 1.5
       default: 0.45 # 0.75
 
   # -------------------------------------------

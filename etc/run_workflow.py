@@ -23,8 +23,8 @@ model_cfg_path = "etc/tests/Auckland_2019_measles/cfg/model.yml"
 vis_cfg_path = "etc/tests/Auckland_2019_measles/cfg/vis.yml"
 
 run_input = False
-run_train = False
-run_predict = False
+run_train = True
+run_predict = True
 run_vis = True
 
 workdir = "/tmp/gradabm_esr/Auckland_2019_measles3"
