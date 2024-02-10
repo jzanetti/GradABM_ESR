@@ -2,7 +2,8 @@ import torch
 from numpy import array as numpy_array
 from torch import Tensor as torch_tensor
 
-from process.model import DEVICE, OPTIMIZATION_CFG
+from process import DEVICE
+from process.model import OPTIMIZATION_CFG
 from process.model.abm import GradABM
 
 
@@ -42,9 +43,7 @@ def run_gradabm_wrapper(
             param_values,
             param_info,
             training_num_steps,
-            debug=False,
             save_records=save_records,
-            print_step_info=True,
         )
         pred_t = pred_t.type(torch.float64)
         predictions.append(pred_t.to(DEVICE))

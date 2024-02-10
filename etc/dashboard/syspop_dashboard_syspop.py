@@ -18,7 +18,8 @@ app = dash.Dash(__name__)
 # ------------------------------
 # Read the data
 # ------------------------------
-preprocessed_data_path = "etc/dashboard/testdata/preproc_data.pickle"
+
+preprocessed_data_path = "etc/dashboard/testdata/extracted_data.pickle"
 force_preproc_data = False
 
 
@@ -173,6 +174,17 @@ def update_second_dropdown(value):
         ]
 
 
+def create_plot(data_id, x1, y1):
+    fig = go.Figure(data=go.Scatter(x=x1, y=y1))
+    fig.update_layout(title_text=f"Plot for data_id {data_id}")
+    return fig
+
+
+def create_popup(data_id, x1, y1):
+    fig = create_plot(data_id, [x1, 3], [y1, 5])
+    return folium.Popup(fig.to_html(), max_width=650)
+
+
 # Define the callback
 @app.callback(
     Output("map", "srcDoc"),
@@ -262,6 +274,7 @@ def update_map(selected_type, selected_place, selected_frac, selected_color_indi
                             "radius": 5,
                         },
                         "popup": f"- Name: {data_id} <br> - Age {data_age} <br> - Gender: {data_gender} <br> - Ethnicity: {data_ethnicity}",
+                        # "popup": create_popup(data_id, 15, 15),
                         "id": "f{data_id}",
                     },
                 }

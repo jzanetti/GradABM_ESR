@@ -1,30 +1,27 @@
-from abc import ABC, abstractmethod
-from collections import Counter
 from copy import copy as shallow_copy
 from logging import getLogger
 
 import torch
-import torch.nn.functional as F
-from numpy import isnan
+import torch.nn.functional as torch_func
 from numpy import isnan as numpy_isnan
 from pandas import DataFrame
 from pandas import read_csv as pandas_read_csv
 from torch import manual_seed as torch_seed
-from torch import ones_like as torch_ones_like
 from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 
+from process import DEVICE
 from process.model import (
     ALL_PARAMS,
-    DEVICE,
     OPTIMIZATION_CFG,
-    PRERUN_NUM_EPOCHS,
+    PRERUN_CFG,
+    PRINT_MODEL_INFO,
     STAGE_INDEX,
-    TORCH_SEED_NUM,
+    USE_RANDOM_INFECTION_DEFAULT,
 )
 from process.model.gnn import GNN_model
-from process.model.loss_func import get_loss_func, loss_optimization
-from process.model.param import build_param_model, obtain_param_cfg, param_model_forward
+from process.model.loss_func import get_loss_func
+from process.model.param import build_param_model, obtain_param_cfg
 from process.model.prep import update_params_for_prerun
 from process.model.progression import Progression_model
 from process.utils.utils import round_a_list
@@ -57,7 +54,7 @@ class GradABM:
         self.initial_infected_ids = params["predict_update"][
             "initial_infected_ids_update"
         ]
-        self.use_random_infection = True
+        self.use_random_infection = USE_RANDOM_INFECTION_DEFAULT
         if params["predict_update"]["use_random_infection_update"] is not None:
             self.use_random_infection = params["predict_update"][
                 "use_random_infection_update"
@@ -164,15 +161,12 @@ class GradABM:
         #    for value, count in Counter(lam_t[:, 0].tolist()).items()
         # }
         while True:
-            if TORCH_SEED_NUM is not None:
-                # torch_seed(create_random_seed())
-                torch_seed(TORCH_SEED_NUM["newly_exposed"])
 
-            potentially_exposed_today = F.gumbel_softmax(
+            potentially_exposed_today = torch_func.gumbel_softmax(
                 logits=cat_logits, tau=1, hard=True, dim=1
             )[:, 0]
 
-            if not isnan(
+            if not numpy_isnan(
                 potentially_exposed_today.cpu().clone().detach().numpy()
             ).any():
                 break
@@ -215,8 +209,7 @@ class GradABM:
         )
         self.agents_next_stage_times = (
             self.progression_wrapper.init_agents_next_stage_time(
-                self.current_stages,
-                infected_to_recovered_or_dead_time,
+                self.current_stages, infected_to_recovered_or_dead_time
             ).float()
         )
 
@@ -227,40 +220,6 @@ class GradABM:
         self.agents_infected_time = self.progression_wrapper.init_infected_time(
             self.current_stages
         ).float()
-
-    def print_debug_info(
-        self,
-        current_stages,
-        agents_next_stage_times,
-        newly_exposed_today,
-        target2,
-        t,
-        debug_info: list = ["t", "stage", "die"],
-    ):
-        if "t" in debug_info:
-            print(f"Timestep: {t}")
-        if "stage" in debug_info:
-            current_stages_list = current_stages.tolist()
-            susceptible_num = current_stages_list.count(STAGE_INDEX["susceptible"])
-            exposed_num = current_stages_list.count(STAGE_INDEX["exposed"])
-            infected_num = current_stages_list.count(STAGE_INDEX["infected"])
-            recovered_or_death_num = current_stages_list.count(
-                STAGE_INDEX["recovered_or_death"]
-            )
-            total_num = (
-                susceptible_num + exposed_num + infected_num + recovered_or_death_num
-            )
-            print(
-                f"    cur_stage: {susceptible_num}(susceptible), {exposed_num}(exposed), {infected_num}(infected), {recovered_or_death_num}(recovered_or_death), {total_num}(total)"
-            )
-        if "stage_times" in debug_info:
-            print(
-                f"    next_stage_times: {round_a_list(agents_next_stage_times.tolist())}"
-            )
-        if "exposed" in debug_info:
-            print(f"    newly exposed: {newly_exposed_today}")
-        if "die" in debug_info:
-            print(f"    die: {target2}")
 
     def get_params(self, param_info: dict, param_t: list):
         self.proc_params = {}
@@ -291,20 +250,11 @@ class GradABM:
             int(max_infectiousness_timesteps),
         ).to(DEVICE)
 
-    def step(
-        self,
-        t,
-        param_t,
-        param_info,
-        total_timesteps,
-        debug: bool = False,
-        save_records: bool = False,
-        print_step_info: bool = False,
-    ):
+    def step(self, t, param_t, param_info, total_timesteps, save_records: bool = False):
         if t == 0:
             self.get_params(param_info, param_t)
             self.init_infected_tensors(
-                self.proc_params["initial_infected_percentage"],
+                self.proc_params["initial_infected_percentage"] / 2.0,
                 self.proc_params["infected_to_recovered_or_death_time"],
             )
             self.cal_lam_gamma_integrals(
@@ -313,6 +263,17 @@ class GradABM:
                 self.proc_params["infection_gamma_scaling_factor"],
             )
         else:
+            if t == 1:
+                (
+                    self.current_stages,
+                    self.agents_infected_time,
+                    self.agents_next_stage_times,
+                ) = self.create_random_infected_tensors(
+                    self.proc_params["initial_infected_percentage"] / 2.0,
+                    self.proc_params["infected_to_recovered_or_death_time"],
+                    t,
+                )
+
             if self.use_random_infection:
                 (
                     self.current_stages,
@@ -343,11 +304,10 @@ class GradABM:
             self.proc_params["vaccine_efficiency_symptom"],
             self.current_stages,
             self.agents_next_stage_times,
-            self.proc_params["infected_to_recovered_or_death_time"],
             t,
         )
 
-        if print_step_info:
+        if PRINT_MODEL_INFO:
             print(
                 f"  {t}: ",
                 f"exposed: {self.current_stages.tolist().count(1.0)} |",
@@ -357,20 +317,14 @@ class GradABM:
                 # f"infection_ratio_distribution_percentage: {infection_ratio_distribution_percentage}",
                 f"target: {int(target)}",
             )
-            # print(f" - Memory: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
+            print(
+                f" - Memory: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb"
+            )
 
         stage_records = None
         if save_records:
             stage_records = shallow_copy(self.current_stages.tolist())
 
-        if debug:
-            self.print_debug_info(
-                self.current_stages,
-                self.agents_next_stage_times,
-                newly_exposed_today,
-                target,
-                t,
-            )
         next_stages = self.progression_wrapper.update_current_stage(
             newly_exposed_today,
             self.current_stages,
@@ -426,7 +380,7 @@ def build_abm(
     all_interactions: dict,
     infection_cfg: dict,
     outbreak_ctl_cfg: dict,
-    cfg_update: None or dict = None,
+    cfg_update: None or dict = None,  # type: ignore
 ):
     """build simulator: ABM
 
@@ -437,7 +391,9 @@ def build_abm(
         cfg_update (Noneordict): Configuration to update (e.g., used for prediction)
     """
 
-    def _updated_predict_cfg(params: dict, predict_cfg: None or dict) -> dict:
+    def _updated_predict_cfg(
+        params: dict, predict_cfg: None or dict  # type: ignore
+    ) -> dict:
         """If it is a prediction, update the configuration
 
         Args:
@@ -508,7 +464,7 @@ def build_abm(
 def init_abm(
     model_inputs: dict,
     cfg: dict,
-    prerun_params: list or None = None,
+    prerun_params: list or None = None,  # type: ignore
 ) -> dict:
     """Initiaite an ABM model
 
@@ -520,7 +476,7 @@ def init_abm(
     Returns:
         dict: Initial ABM model
     """
-    logger.info("Building ABM ...")
+    # logger.info("Building ABM ...")
     abm = build_abm(
         model_inputs["all_agents"],
         model_inputs["all_interactions"],
@@ -528,10 +484,10 @@ def init_abm(
         cfg["outbreak_ctl"],
     )
 
-    logger.info("Creating initial parameters (to be trained) ...")
+    logger.info("     * Creating initial parameters (to be trained) ...")
 
     if prerun_params:
-        num_epochs = PRERUN_NUM_EPOCHS
+        num_epochs = PRERUN_CFG["epochs"]
         cfg = update_params_for_prerun(cfg)
     else:
         num_epochs = OPTIMIZATION_CFG["num_epochs"]
@@ -541,7 +497,7 @@ def init_abm(
         OPTIMIZATION_CFG["num_epochs"],
     )
 
-    logger.info("Creating loss function ...")
+    logger.info("     * Creating loss function ...")
     loss_def = get_loss_func(param_model, model_inputs["total_timesteps"])
 
     return {

@@ -119,8 +119,7 @@ def plot_diags(
     vis_cfg,
     predict_common_cfg,
     apply_log_for_loss: bool = False,
-    # start_timestep: int or None = None,
-    # end_timestep: int or None = None,
+    plot_err_range: bool = False,
     plot_obs: bool = True,
 ):
     if not exists(workdir):
@@ -180,17 +179,7 @@ def plot_diags(
 
         sa2 = read_csv(vis_cfg["agents_map"]["sa2_path"])
         sa2 = sa2.loc[sa2["LAND_AREA_SQ_KM"] > 0]
-        """
-        gdf = GeoDataFrame(sa2, geometry=GeoSeries.from_wkt(sa2["WKT"]))
-        gdf = gdf.cx[
-            vis_cfg["agents_map"]["domain"]["min_lon"] : vis_cfg["agents_map"]["domain"][
-                "max_lon"
-            ],
-            vis_cfg["agents_map"]["domain"]["min_lat"] : vis_cfg["agents_map"]["domain"][
-                "max_lat"
-            ],
-        ]
-        """
+
         sa2 = GeoDataFrame(sa2, geometry=GeoSeries.from_wkt(sa2["WKT"]))
         sa2 = sa2.cx[
             vis_cfg["agents_map"]["domain"]["min_lon"] : vis_cfg["agents_map"][
@@ -397,12 +386,15 @@ def plot_diags(
         else:
             all_preds.append(my_pred)
 
-    if len(all_preds) > 0:
+    x = range(len(all_preds[0]))
+    if plot_err_range:
         all_preds = array(all_preds)
         y_min = min(all_preds, 0)
         y_max = max(all_preds, 0)
-        x = range(len(y_min))
         ax.fill_between(x, y_min, y_max, alpha=0.5)
+    else:
+        for proc_prd in all_preds:
+            plot(proc_prd, linewidth=0.75, color="grey", alpha=0.5, linestyle="--")
 
     start_name = 0
     if predict_common_cfg["start"]["name"] is not None:

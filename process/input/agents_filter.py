@@ -1,220 +1,183 @@
-from os.path import join
+from json import load as json_load
+from pickle import load as pickle_load
 
-from pandas import DataFrame, concat
-from pandas import read_parquet as pandas_read_parquet
-
-from input import AGE_INDEX, ETHNICITY_INDEX, LOC_INDEX, SEX_INDEX
-
-
-def obtain_agents_info(agents_data_path: str, interaction_data_path: str) -> dict:
-    """Obtain agents data for filtering purpose
-
-    Args:
-        agents_data_path (str): Agent data path
-        interaction_data_path (str): Interaction data path
-
-    Returns:
-        dict: processed data
-    """
-
-    def _map_age_index(age_index):
-        for key, value in AGE_INDEX.items():
-            if int(age_index) == value:
-                return key
-        return None
-
-    agents_data = pandas_read_parquet(agents_data_path)
-    interaction_data = pandas_read_parquet(interaction_data_path)
-    # agents_data2["age_range"] = agents_data2["age"].apply(lambda x: AGE_INDEX[x])
-    agents_data["age_range"] = agents_data["age"].apply(_map_age_index)
-    agents_data["age_range_min"] = agents_data["age_range"].str.split("-").str[0]
-    agents_data["age_range_max"] = agents_data["age_range"].str.split("-").str[1]
-
-    return {"agents_data": agents_data, "interaction_data": interaction_data}
+from numpy import NaN as numpy_NaN
+from pandas import DataFrame
+from pandas import concat as pandas_concat
+from pandas import read_csv as pandas_read_csv
 
 
-def age_filter(
-    data_to_process: DataFrame, max_age: int or None, min_age: int or None
-) -> DataFrame:
-    """Age filter
+def prepare_agents(syspop_path: str, diary_path: str, agent_paths: list) -> dict:
+    """_summary_
 
     Args:
-        data_to_process (DataFrame): _description_
-        max_age (intorNone): _description_
-        min_age (intorNone): _description_
+        syspop_path (str): _description_
+        diary_path (str): _description_
+        agent_paths (list): _description_
 
     Returns:
-        DataFrame: _description_
+        dict: _description_
     """
-    if max_age is None:
-        max_age = 99999.0
-    if min_age is None:
-        min_age = -99999.0
+    all_agents = []
+    for proc_agent_path in agent_paths:
+        with open(proc_agent_path) as json_file:
+            all_agents.append(json_load(json_file))
 
-    return data_to_process[
-        (data_to_process["age_range_min"].astype(int) < max_age)
-        & (data_to_process["age_range_max"].astype(int) >= min_age)
-    ]
+    syspop_data = pandas_read_csv(syspop_path)
+    diary_data = pickle_load(open(diary_path, "rb"))
+
+    return {
+        "syspop_data": syspop_data,
+        "diary_data": diary_data,
+        "all_agents": all_agents,
+    }
 
 
-def sex_filter(data_to_process: DataFrame, sex_list: list) -> DataFrame:
-    """Sex filter
+def agents_filter(input_data: dict) -> DataFrame:
+    """Data filter
 
     Args:
-        data_to_process (DataFrame): _description_
-        sex_list (list): _description_
+        syspop_data_keys (list): _description_
+        proc_agent (dict): _description_
+        syspop_data (DataFrame): _description_
 
     Returns:
-        DataFrame: _description_
+        str or numpy_NaN: _description_
     """
-    sex_values = []
-    for proc_sex in sex_list:
-        sex_values.append(SEX_INDEX[proc_sex])
-    return data_to_process[data_to_process["sex"].isin(sex_values)]
 
+    def _data_filter(
+        proc_key: str, proc_agent: dict, syspop_data: DataFrame
+    ) -> str or numpy_NaN:
+        """Data filter
 
-def ethnicity_filter(data_to_process: DataFrame, ethnicity_list: list) -> DataFrame:
-    """Ethnicity filter
+        Args:
+            syspop_data_keys (list): _description_
+            proc_agent (dict): _description_
+            syspop_data (DataFrame): _description_
 
-    Args:
-        data_to_process (DataFrame): _description_
-        ethnicity_list (list): _description_
+        Returns:
+            str or numpy_NaN: _description_
+        """
+        if proc_key == "area":
+            return proc_agent["locations"]["household"]["sa2"]
+        elif proc_key == "area_work":
+            if proc_agent["locations"]["work"] is not None:
+                return proc_agent["locations"]["work"]["sa2"]
+            else:
+                return numpy_NaN
+        elif proc_key == "travel_mode_work":
+            if proc_agent["locations"]["work"] is not None:
+                return proc_agent["locations"]["work"]["travel_mode"]
+            else:
+                return numpy_NaN
+        elif proc_key == "public_transport_trip":
+            if proc_agent["locations"]["work"] is not None:
+                return proc_agent["locations"]["work"]["public_transport_trip"]
+            else:
+                return numpy_NaN
+        elif proc_key in ["primary_hospital", "secondary_hospital"]:
+            return numpy_NaN
+        elif proc_key == "company":
+            if proc_agent["locations"]["work"] is not None:
+                company_name = (
+                    syspop_data[
+                        syspop_data["company"].str.startswith(
+                            f"{proc_agent['locations']['work']['work_code']}_",
+                            na=False,
+                        )
+                        & syspop_data["company"].str.endswith(
+                            f"{proc_agent['locations']['work']['sa2']}", na=False
+                        )
+                    ]
+                    .sample(1)["company"]
+                    .values[0]
+                )
+                return company_name
+            else:
+                return numpy_NaN
 
-    Returns:
-        DataFrame: _description_
-    """
-    ethnicity_values = []
-    for proc_ethnicity in ethnicity_list:
-        ethnicity_values.append(ETHNICITY_INDEX[proc_ethnicity])
-    return data_to_process[data_to_process["ethnicity"].isin(ethnicity_values)]
+        elif proc_key == "school":
+            if proc_agent["locations"]["school"] is not None:
+                school_name = (
+                    syspop_data[
+                        (
+                            syspop_data["area"]
+                            == proc_agent["locations"]["household"]["sa2"]
+                        )
+                        & (syspop_data["age"] == proc_agent["basic"]["age"])
+                    ]
+                    .sample(1)["school"]
+                    .values[0]
+                )
+                return school_name
+            else:
+                return numpy_NaN
 
-
-def vaccine_filter(data_to_process: DataFrame, vaccine_list: list) -> DataFrame:
-    """Vaccine filter
-
-    Args:
-        data_to_process (DataFrame): _description_
-        vaccine_list (list): _description_
-
-    Returns:
-        DataFrame: _description_
-    """
-    return data_to_process[data_to_process["vaccine"].isin(vaccine_list)]
-
-
-def contacts_filter(
-    agents_data: DataFrame,
-    interaction_data: DataFrame,
-    filtered_data: DataFrame,
-    contacts_cfg: dict,
-) -> DataFrame:
-    """Filter data based on the required contacts
-
-    Args:
-        agents_data (DataFrame): _description_
-        interaction_data (DataFrame): _description_
-        filtered_data (DataFrame): _description_
-        contacts_cfg (dict): _description_
-
-    Returns:
-        DataFrame: _description_
-    """
-    all_index = agents_data.index[agents_data["id"].isin(filtered_data["id"])]
-    col1_counts = (
-        interaction_data[interaction_data["id_x"].isin(all_index)]
-        .groupby("spec_x")["id_x"]
-        .value_counts()
-    )
-
-    df = col1_counts.to_frame()
-    df = df.rename(columns={"id_x": "occurance"})
-    df["group_and_idx"] = df.index
-    df = df.reset_index(drop=True)
-
-    df[["group", "idx"]] = DataFrame(df.group_and_idx.tolist(), index=df.index)
-    df = df.drop("group_and_idx", axis=1)
-    df["id"] = filtered_data.loc[df["idx"]]["id"].values
-    df = df.drop("idx", axis=1)
-
-    loc_index_swapped = dict(zip(LOC_INDEX.values(), LOC_INDEX.keys()))
-    for index, row in df.iterrows():
-        df.loc[index, "group_replaced"] = loc_index_swapped[row["group"]]
-
-    df = df.drop("group", axis=1)
-    df["is_within_range"] = False
-    for index, row in df.iterrows():
-        group = row["group_replaced"]
-        if_enable = contacts_cfg[group]["enable"]
-
-        if not if_enable:
-            continue
-
-        min_range = contacts_cfg[group]["min"]
-        max_range = contacts_cfg[group]["max"]
-        if min_range is None:
-            min_range = -999999.0
-        if max_range is None:
-            max_range = 999999.0
-        df.loc[index, "is_within_range"] = (row["occurance"] >= min_range) and (
-            row["occurance"] <= max_range
-        )
-
-    # Select the rows from the DataFrame X where the value of the new column is True
-    df = df.loc[df["is_within_range"]]
-
-    df = df.drop("is_within_range", axis=1)
-    df = df.rename(columns={"group_replaced": "group"})
-
-    return df
-
-
-def agents_filter(cfg: dict, data: dict) -> DataFrame:
-    """Agents filter
-
-    Args:
-        cfg (dict): _description_
-        data (dict): _description_
-
-    Returns:
-        DataFrame: _description_
-    """
-    dfs = []
-    for proc_area_info in cfg["all_agents"]:
-        for proc_agents_info in cfg["all_agents"][proc_area_info]:
-            proc_agents_data = data["agents_data"][data["agents_data"]["area"] == proc_area_info]
-            proc_agents_info_input = proc_agents_info["agents"]
-
-            # Obtain age
-            proc_agents_data = age_filter(
-                proc_agents_data,
-                proc_agents_info_input["age"]["max"],
-                proc_agents_info_input["age"]["min"],
+        elif proc_key in ["age", "gender", "ethnicity", "social_economics"]:
+            return proc_agent["basic"][proc_key]
+        elif proc_key == "household":
+            household_name = syspop_data[
+                syspop_data["household"].str.startswith(
+                    f"{proc_agent['locations']['household']['sa2']}_{proc_agent['locations']['household']['adults']}_{proc_agent['locations']['household']['children']}"
+                )
+            ].sample(1)["household"]
+            return household_name
+        elif proc_key in ["supermarket", "restaurant"]:
+            return (
+                syspop_data[
+                    (syspop_data["area"] == proc_agent["locations"][proc_key]["sa2"])
+                ]
+                .sample(1)[proc_key]
+                .values[0]
             )
 
-            # Obtain sex
-            proc_agents_data = sex_filter(proc_agents_data, proc_agents_info_input["sex"])
+    syspop_data_keys = list(input_data["syspop_data"].columns)
+    agents_data = {}
+    for proc_key in syspop_data_keys:
+        agents_data[proc_key] = []
 
-            # Obtain ethnicity
-            proc_agents_data = ethnicity_filter(
-                proc_agents_data, proc_agents_info_input["ethnicity"]
+    for index, proc_agent in enumerate(input_data["all_agents"]):
+        agents_data["id"].append(input_data["syspop_data"]["id"].max() + index + 1)
+
+        for proc_key in syspop_data_keys:
+            if proc_key == "id":
+                continue
+
+            agents_data[proc_key].append(
+                _data_filter(proc_key, proc_agent, input_data["syspop_data"])
             )
 
-            # Obtain vaccine:
-            proc_agents_data = vaccine_filter(proc_agents_data, proc_agents_info_input["vaccine"])
-
-            # Obtain contacts
-            all_filtered_output = contacts_filter(
-                data["agents_data"],
-                data["interaction_data"],
-                proc_agents_data,
-                proc_agents_info_input["contacts"],
-            )
-
-            random_sample = all_filtered_output.sample(n=proc_agents_info_input["num"])
-            dfs.append(random_sample)
-
-    return concat(dfs)
+    agents_data = DataFrame.from_dict(agents_data)
+    agents_data["index"] = agents_data["id"]
+    agents_data = agents_data.set_index("index", inplace=False)
+    agents_data.index.name = None
+    updated_syspop_data = pandas_concat([input_data["syspop_data"], agents_data])
+    return updated_syspop_data
 
 
-def write_out_df(workdir: str, data: DataFrame):
-    data.to_csv(join(workdir, "agents_filter.csv"))
+def diary_filter(input_data: dict) -> dict:
+
+    diary_data = input_data["diary_data"]["diaries"]
+
+    diary_output = {}
+    for proc_hr in range(24):
+        if "id" not in diary_output:
+            diary_output["id"] = []
+
+        if proc_hr not in diary_output:
+            diary_output[proc_hr] = []
+        for index, proc_agent in enumerate(input_data["all_agents"]):
+
+            if proc_hr == 0:
+                diary_output["id"].append(diary_data["id"].max() + index + 1)
+
+            try:
+                diary_output[proc_hr].append(proc_agent["diary"][str(proc_hr)])
+            except KeyError:
+                diary_output[proc_hr].append(proc_agent["diary"]["default"])
+
+    diary_output = DataFrame.from_dict(diary_output)
+
+    updated_diary_data = diary_data.append(diary_output, ignore_index=True)
+
+    return updated_diary_data

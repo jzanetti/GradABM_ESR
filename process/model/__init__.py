@@ -1,8 +1,6 @@
-# import os
+USE_RANDOM_INFECTION_DEFAULT = False
 
-from torch import device as torch_device
-
-# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "500"
+USE_RNN = False
 
 ALL_PARAMS = [
     "vaccine_efficiency_spread",
@@ -25,36 +23,19 @@ STAGE_INDEX = {
     "death": 4,
 }
 
-DEVICE = torch_device(f"cuda:0")
-# DEVICE = torch_device("cpu")
-
-
-# TORCH_SEED_NUM = {
-#    "initial_infected": 100,
-#    "random_infected": 200,
-#    "newly_exposed": 300,
-#    "isolation_policy": 400,
-# }
-
-
-TORCH_SEED_NUM = None
-
-USE_RNN = False
 REMOVE_WARM_UP_TIMESTEPS = None  # must be a integer or None
 
-OPT_METHOD = "sgd"
-OPT_METRIC = "mse"
-USE_LOSS_SCALER = False
-INITIAL_LOSS = 1e10
+SMALL_FIX_VALUE = 1e-9
 
-SMALL_VALUE = 1e-9
+PRINT_MODEL_INFO = True
 
-PRINT_INCRE = True
-
-PRERUN_PARAMS_NUM = 5
-PRERUN_NUM_EPOCHS = 3
+PRERUN_CFG = {"params_num": 5, "epochs": 3}
 
 OPTIMIZATION_CFG = {
+    "opt_method": "sgd",
+    "opt_metric": "mse",
+    "use_loss_scaler": False,
+    "initial_loss": 1e10,
     "basic_lr": 0.1,
     "num_epochs": 30,
     "clip_grad_norm": 10.0,

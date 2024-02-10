@@ -1,0 +1,21 @@
+
+interaction_ratio:
+  household: 0.5 # 0.15
+  supermarket: 0.03 # 0.01
+  company: 0.1 # 0.05
+  school: 0.1 # 0.03
+  travel: 0.75 # 0.3
+  restaurant: 0.03 # 0.01
+  pharmacy: 0.5
+
+ensemble:
+  venue: 2  # for example, agents have options to go to different supermarkets, each ensemble will take one supermarket
+  interaction: 3
+
+runtime_attributes:
+  vaccine:
+    European: 0.75
+    Maori: 0.47
+    Pacific: 0.6
+    Asian: 0.89
+    MELAA: 0.75

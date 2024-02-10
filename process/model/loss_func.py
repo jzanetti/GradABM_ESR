@@ -11,13 +11,8 @@ from torchmetrics.regression import (
     MeanSquaredError,
 )
 
-from process.model import (
-    DEVICE,
-    OPT_METHOD,
-    OPT_METRIC,
-    OPTIMIZATION_CFG,
-    USE_LOSS_SCALER,
-)
+from process import DEVICE
+from process.model import OPTIMIZATION_CFG
 
 logger = getLogger()
 
@@ -38,7 +33,7 @@ def get_loss_func(
         _type_: _description_
     """
     basic_lr = OPTIMIZATION_CFG["basic_lr"]
-    if OPT_METHOD == "adam":
+    if OPTIMIZATION_CFG["opt_method"] == "adam":
         opt = Adam(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,
@@ -46,7 +41,7 @@ def get_loss_func(
             differentiable=False,
         )  # loss_fn = NegativeCosineSimilarityLoss()
 
-    elif OPT_METHOD == "sgd":
+    elif OPTIMIZATION_CFG["opt_method"] == "sgd":
         opt = SGD(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,
@@ -56,7 +51,7 @@ def get_loss_func(
             differentiable=False,
         )
 
-    elif OPT_METHOD == "adag":
+    elif OPTIMIZATION_CFG["opt_method"] == "adag":
         opt = Adagrad(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,
@@ -64,7 +59,7 @@ def get_loss_func(
             differentiable=False,
         )
 
-    elif OPT_METHOD == "rmsp":
+    elif OPTIMIZATION_CFG["opt_method"] == "rmsp":
         opt = RMSprop(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,
@@ -72,7 +67,7 @@ def get_loss_func(
             differentiable=False,
         )
 
-    elif OPT_METHOD == "adad":
+    elif OPTIMIZATION_CFG["opt_method"] == "adad":
         opt = Adadelta(
             filter(lambda p: p.requires_grad, param_model.parameters()),
             lr=basic_lr,
@@ -82,11 +77,11 @@ def get_loss_func(
 
     loss_weight = torch_ones((1, total_timesteps, 1)).to(DEVICE)
 
-    if OPT_METRIC == "mse":
+    if OPTIMIZATION_CFG["opt_metric"] == "mse":
         loss_func = MeanSquaredError().to(DEVICE)
-    elif OPT_METRIC == "mspe":
+    elif OPTIMIZATION_CFG["opt_metric"] == "mspe":
         loss_func = MeanAbsolutePercentageError().to(DEVICE)
-    elif OPT_METRIC == "cosine":
+    elif OPTIMIZATION_CFG["opt_metric"] == "cosine":
         loss_func = CosineSimilarity().to(DEVICE)
 
     lr_scheduler = None
@@ -98,7 +93,7 @@ def get_loss_func(
         )
 
     loss_func_scaler = None
-    if USE_LOSS_SCALER:
+    if OPTIMIZATION_CFG["use_loss_scaler"]:
         loss_func_scaler = GradScaler()
 
     return {

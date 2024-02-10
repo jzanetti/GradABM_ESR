@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from numpy import arange as numpy_arange
 from numpy import array
 from numpy import isin as numpy_isin
-from numpy import isnan
 from numpy import isnan as numpy_isnan
 from numpy import sum as numpy_sum
 from numpy import where
@@ -12,14 +11,11 @@ from numpy import where as numpy_where
 from numpy.random import choice
 from numpy.random import choice as numpy_choice
 from numpy.random import random as numpy_random
-from torch import clamp as torch_clamp
 from torch import clone as torch_clone
 from torch import eq as torch_eq
-from torch import float32 as torch_float32
 from torch import hstack as torch_hstack
 from torch import log as torch_log
 from torch import long as torch_long
-from torch import manual_seed as torch_seed
 from torch import masked_select as torch_masked_select
 from torch import ones as torch_ones
 from torch import ones_like as torch_ones_like
@@ -29,7 +25,8 @@ from torch import where as torch_where
 from torch import zeros as torch_zeros
 from torch import zeros_like as torch_zeros_like
 
-from process.model import DEVICE, SMALL_VALUE, STAGE_INDEX, TORCH_SEED_NUM
+from process import DEVICE
+from process.model import SMALL_FIX_VALUE, STAGE_INDEX
 
 
 class DiseaseProgression(ABC):
@@ -83,14 +80,12 @@ class Progression_model(DiseaseProgression):
         cat_logits = torch_log(p + 1e-9)
 
         while True:
-            if TORCH_SEED_NUM is not None:
-                torch_seed(TORCH_SEED_NUM["random_infected"])
 
             agents_stages_with_random_infected = F.gumbel_softmax(
                 logits=cat_logits, tau=1, dim=1, hard=True
             )[:, 0]
 
-            if not isnan(
+            if not numpy_isnan(
                 agents_stages_with_random_infected.cpu().clone().detach().numpy()
             ).any():
                 break
@@ -132,8 +127,6 @@ class Progression_model(DiseaseProgression):
             cat_logits = torch_log(p + 1e-9)
             tries = 0
             while True:
-                if TORCH_SEED_NUM is not None:
-                    torch_seed(TORCH_SEED_NUM["initial_infected"])
 
                 agents_stages = F.gumbel_softmax(
                     logits=cat_logits, tau=1, hard=True, dim=1
@@ -144,7 +137,7 @@ class Progression_model(DiseaseProgression):
                 if tries > 10:
                     raise Exception("Not able to create initial infected agents ...")
 
-                if not isnan(agents_stages.cpu().clone().detach().numpy()).any():
+                if not numpy_isnan(agents_stages.cpu().clone().detach().numpy()).any():
                     break
 
             agents_stages *= STAGE_INDEX["infected"]
@@ -154,16 +147,19 @@ class Progression_model(DiseaseProgression):
     def init_infected_time(self, agents_stages):
         agents_infected_time = -1 * torch_ones_like(agents_stages).to(DEVICE)
         agents_infected_time[agents_stages == STAGE_INDEX["infected"]] = 0
-
         return agents_infected_time
 
     def init_agents_next_stage_time(
-        self, agents_stages, infected_to_recovered_or_dead_time, use_prob=False
+        self,
+        agents_stages,
+        infected_to_recovered_or_dead_time,
+        use_prob=False,
     ):
         # agents_next_stage_times = 0.001 * torch_ones_like(agents_stages).long().to(device)
         agents_next_stage_times = torch_zeros_like(agents_stages).long().to(DEVICE)
 
         if use_prob:
+
             # Create an array with the desired values 1.0 and 2.0 with the specified probabilities.
             options = numpy_arange(0.0, infected_to_recovered_or_dead_time + 1.0, 1.0)
             probabilities = numpy_random(len(options))
@@ -177,27 +173,13 @@ class Progression_model(DiseaseProgression):
                 ),
                 p=probabilities,
             )
-            agents_next_stage_times[
-                agents_stages == STAGE_INDEX["infected"]
-            ] = torch_tensor(random_values, dtype=torch_long).to(DEVICE)
+            agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = (
+                torch_tensor(random_values, dtype=torch_long).to(DEVICE)
+            )
         else:
             agents_next_stage_times[agents_stages == STAGE_INDEX["infected"]] = (
                 0 + infected_to_recovered_or_dead_time
             )
-        return agents_next_stage_times
-
-    def update_initial_times(
-        self, learnable_params, agents_stages, agents_next_stage_times
-    ):
-        """this is for the abm constructor"""
-        infected_to_recovered_time = learnable_params["infected_to_recovered_time"]
-        exposed_to_infected_time = learnable_params["exposed_to_infected_time"]
-        agents_next_stage_times[
-            agents_stages == STAGE_INDEX["exposed"]
-        ] = exposed_to_infected_time
-        agents_next_stage_times[
-            agents_stages == STAGE_INDEX["infected"]
-        ] = infected_to_recovered_time
         return agents_next_stage_times
 
     def get_newly_exposed(self, current_stages, potentially_exposed_today):
@@ -240,9 +222,7 @@ class Progression_model(DiseaseProgression):
         vaccine_efficiency_symptom,
         current_stages,
         agents_next_stage_times,
-        infected_to_recovered_or_death_time,
         t,
-        apply_sigmoid=False,
     ):
         def _randomly_assign_death_people(recovered_or_dead_today, death_total_today):
             recovered_or_dead_today_array = array(recovered_or_dead_today.tolist())
@@ -267,7 +247,7 @@ class Progression_model(DiseaseProgression):
         if after_infected_index.sum() == 0:
             after_infected_index = torch_where(
                 after_infected_index == 0.0,
-                torch_tensor(SMALL_VALUE),
+                torch_tensor(SMALL_FIX_VALUE),
                 after_infected_index,
             )
 

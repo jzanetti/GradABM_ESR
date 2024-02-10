@@ -2,9 +2,9 @@ import torch.nn as nn
 import torch.nn.init as torch_init
 from torch import tensor as torch_tensor
 from torch import zeros as torch_zeros
-from yaml import safe_load as yaml_load
 
-from process.model import DEVICE, OPTIMIZATION_CFG, USE_RNN
+from process import DEVICE
+from process.model import OPTIMIZATION_CFG, USE_RNN
 
 
 def param_model_forward(param_model, target):

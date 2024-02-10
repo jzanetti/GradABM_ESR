@@ -1,7 +1,6 @@
 import torch
 from numpy import array
 from numpy import float64 as numpy_float64
-from numpy import random as numpy_random
 from pandas import DataFrame
 from pandas import cut as pandas_cut
 from pandas import read_csv as pandas_read_csv
@@ -14,14 +13,14 @@ from torch import tensor as torch_tensor
 from torch import vstack as torch_vstack
 from torch.utils.data.dataloader import DataLoader
 
-from process.input import (
+from process import (
     AGE_INDEX,
+    DEVICE,
     ETHNICITY_INDEX,
     GENDER_INDEX,
     LOC_INDEX,
     VACCINE_INDEX,
 )
-from process.model import DEVICE
 
 
 class SeqData(torch.utils.data.Dataset):
@@ -37,7 +36,6 @@ class SeqData(torch.utils.data.Dataset):
 
 def train_data_wrapper(
     y_path,
-    target_cfg,
     batch_size: int = 1,
     shuffle: bool = True,
 ) -> DataLoader:
@@ -61,9 +59,7 @@ def train_data_wrapper(
         Returns:
             dict: Y data
         """
-        y_input = pandas_read_csv(y_path)[
-            target_cfg["start_timestep"] : target_cfg["end_timestep"]
-        ]
+        y_input = pandas_read_parquet(y_path)
         y_input = y_input.to_numpy()
         y = []
         tensor_y = torch.from_numpy(array([y_input]).astype(numpy_float64))

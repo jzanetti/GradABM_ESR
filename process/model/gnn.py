@@ -11,7 +11,6 @@ from torch import tensor as torch_tensor
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
-from process.model import TORCH_SEED_NUM
 from process.model.policy import school_closure
 
 logger = getLogger()
@@ -57,9 +56,6 @@ def infected_case_isolation(
     isolated_agents_length = int(
         isolation_compliance_rate * identified_infected_agents_length
     )
-
-    if TORCH_SEED_NUM is not None:
-        torch_seed(TORCH_SEED_NUM["isolation_policy"])
 
     isolated_agents_index = torch_randperm(infected_agents_length)[
         :isolated_agents_length
@@ -132,7 +128,10 @@ def lam(
     integrals = torch_zeros_like(S_A_s)
     infected_idx = x_j[:, 4].long() == 2.0
     infected_times = t - x_j[infected_idx, 6]
-    integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
+    try:
+        integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
+    except:
+        x = 3
 
     # Isolate infected cases
     if t == -1:

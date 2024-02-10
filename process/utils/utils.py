@@ -2,7 +2,6 @@ from datetime import datetime
 from gc import collect
 from logging import INFO, Formatter, StreamHandler, basicConfig, getLogger
 from os.path import join
-from time import time
 
 from numpy import array, mean
 from yaml import safe_load as yaml_load
@@ -33,11 +32,7 @@ def clear_cuda_memory(print_memory_usage: bool = False):
     collect()
 
 
-def create_random_seed(factor=100000):
-    return factor * time()
-
-
-def get_params_increments(param_values_list):
+def print_params_increments(param_values_list):
     if len(param_values_list) < 2:
         return
     param_values1 = param_values_list[-2]
@@ -56,10 +51,14 @@ def get_params_increments(param_values_list):
 
     param_incre = (param_values2 - param_values1) / param_values1
 
-    logger.info(f"{param_incre}")
+    logger.info(f"     * increments: {param_incre}")
 
 
-def setup_logging(workdir: str = "/tmp", start_utc: datetime = datetime.utcnow()):
+def setup_logging(
+    workdir: str = "/tmp",
+    start_utc: datetime = datetime.utcnow(),
+    logger_name: str = "gradabm_esr",
+):
     """set up logging system for tasks
 
     Returns:
@@ -71,7 +70,7 @@ def setup_logging(workdir: str = "/tmp", start_utc: datetime = datetime.utcnow()
     ch = StreamHandler()
     ch.setLevel(INFO)
     ch.setFormatter(formatter)
-    logger_path = join(workdir, f"gradabm_esr.{start_utc.strftime('%Y%m%d')}")
+    logger_path = join(workdir, f"{logger_name}.{start_utc.strftime('%Y%m%d')}")
     basicConfig(filename=logger_path),
     logger = getLogger()
     logger.setLevel(INFO)

@@ -7,8 +7,7 @@ from numpy import ones as numpy_ones
 from numpy import where as numpy_where
 from torch import tensor as torch_tensor
 
-from process.input import LOC_INDEX
-from process.model import DEVICE
+from process import DEVICE, LOC_INDEX
 
 
 def school_closure(infected_idx, edge_attr, school_closure_cfg):
