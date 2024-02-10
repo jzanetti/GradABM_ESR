@@ -2,72 +2,14 @@ from logging import getLogger
 from random import uniform as random_uniform
 
 from torch import int8 as torch_int8
-from torch import int16 as torch_int16
-from torch import manual_seed as torch_seed
-from torch import nonzero as torch_nonzero
 from torch import ones_like as torch_ones_like
-from torch import randperm as torch_randperm
 from torch import tensor as torch_tensor
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
-from process.model.policy import school_closure
+from process.model.policy import infected_case_isolation, school_closure
 
 logger = getLogger()
-
-
-def infected_case_isolation(
-    infected_idx,
-    contact_tracing_coverage,
-    isolation_compliance_rate,
-    isolation_intensity,
-    t,
-    min_cases: int = 10,
-):
-    """Create infected case isolation scaling factor
-
-    Args:
-        infected_idx: Infected case index
-
-    Returns:
-        _type_: Scaling factor for infected case
-    """
-    if (
-        (isolation_compliance_rate is None)
-        or (contact_tracing_coverage is None)
-        or (t == 0)
-    ):
-        return torch_ones_like(infected_idx)
-
-    # infected agents (0.0: uninfected; 1.0: infected)
-    infected_agents = infected_idx.float()
-    infected_agents_index = torch_nonzero(infected_agents == 1.0).squeeze()
-    try:
-        infected_agents_length = len(infected_agents_index)
-    except TypeError:  # len() of a 0-d tensor
-        infected_agents_length = -999.0
-
-    if infected_agents_length < min_cases:
-        return torch_ones_like(infected_agents)
-
-    identified_infected_agents_length = (
-        infected_agents_length * contact_tracing_coverage
-    )
-    isolated_agents_length = int(
-        isolation_compliance_rate * identified_infected_agents_length
-    )
-
-    isolated_agents_index = torch_randperm(infected_agents_length)[
-        :isolated_agents_length
-    ]
-    isolated_mask = torch_zeros_like(infected_agents)
-    isolated_mask[infected_agents_index[isolated_agents_index]] = (
-        1.0 - isolation_intensity
-    )
-
-    isolated_sf = 1.0 - isolated_mask
-
-    return isolated_sf
 
 
 def lam(
@@ -213,43 +155,6 @@ class GNN_model(MessagePassing):
 
         if vis_debug:
             self.vis_debug_graph(edge_index)
-
-        """
-        The propagate() method of the MessagePassing class performs the 
-        message passing algorithm on a given graph. It takes the following arguments:
-
-         - x: A tensor of node features.
-         - edge_index: A tensor of edge indices.
-
-        The propagate() method returns a tensor of updated node features.
-
-        The x_i and x_j tensors are the node features for the source and target nodes of each edge, respectively. 
-        They are obtained by splitting the x tensor using the edge_index tensor.
-
-        For example:
-
-            edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long)
-            x = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float)
-            
-            - The above tensor could represent a graph with two nodes and two edges. 
-            - The first row of the tensor represents the first edge, which goes from node 0 to node 1. 
-            - The second row of the tensor represents the second edge, which goes from node 1 to node 2.
-            
-            The propagate() method would split the x tensor as follows:
-
-            x_i = torch.tensor([[1.0], [2.0]])
-            x_j = torch.tensor([[2.0], [3.0]]) 
-
-            - The x_i tensor would then contain the node features for the source nodes of each edge:
-            - The x_j tensor would then contain the node features for the target nodes of each edge:
-
-        We also can get the source node where have the most connections (e.g., having the most target nodes):
-
-            import torch
-            num_outgoing_edges = torch.bincount(edge_index[0])
-            max_outgoing_edges_idx = torch.argmax(num_outgoing_edges)
-
-        """
 
         return self.propagate(
             edge_index,

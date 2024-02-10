@@ -32,7 +32,7 @@ logger = getLogger()
 class GradABM:
     def __init__(self, params):
         # -----------------------------
-        # Step 2: set up agents
+        # Step 1: set up agents
         # -----------------------------
         for attr in ["id", "age", "gender", "ethnicity", "vaccine", "area"]:
             setattr(
@@ -43,13 +43,13 @@ class GradABM:
         self.num_agents = len(params["all_agents"])
 
         # -----------------------------
-        # Step 3: set up interaction
+        # Step 2: set up interaction
         # -----------------------------
         self.all_edgelist = params["all_interactions"]["all_edgelist"]
         self.all_edgeattr = params["all_interactions"]["all_edgeattr"]
 
         # -----------------------------
-        # Step 4: set up prediction configuration
+        # Step 3: set up prediction configuration
         # -----------------------------
         self.initial_infected_ids = params["predict_update"][
             "initial_infected_ids_update"
@@ -98,7 +98,7 @@ class GradABM:
         # -----------------------------
         # Step 7: set up progress and GNN model
         # -----------------------------
-        self.progression_wrapper = Progression_model(self.num_agents)
+        self.progression_model = Progression_model(self.num_agents)
 
         self.gnn_model = GNN_model(
             self.scaling_factor_age,
@@ -171,7 +171,7 @@ class GradABM:
             ).any():
                 break
 
-        newly_exposed_today = self.progression_wrapper.get_newly_exposed(
+        newly_exposed_today = self.progression_model.get_newly_exposed(
             self.current_stages, potentially_exposed_today
         )
         # newly_exposed_today = potentially_exposed_today
@@ -187,7 +187,7 @@ class GradABM:
         infected_to_recovered_time,
         t,
     ):
-        return self.progression_wrapper.add_random_infected(
+        return self.progression_model.add_random_infected(
             random_percentage,
             infected_to_recovered_time,
             self.current_stages,
@@ -202,13 +202,13 @@ class GradABM:
         initial_infected_percentage,
         infected_to_recovered_or_dead_time,
     ):
-        self.current_stages = self.progression_wrapper.init_infected_agents(
+        self.current_stages = self.progression_model.init_infected_agents(
             initial_infected_percentage,
             self.initial_infected_ids,
             self.agents_id,
         )
         self.agents_next_stage_times = (
-            self.progression_wrapper.init_agents_next_stage_time(
+            self.progression_model.init_agents_next_stage_time(
                 self.current_stages, infected_to_recovered_or_dead_time
             ).float()
         )
@@ -217,7 +217,7 @@ class GradABM:
             self.current_stages == STAGE_INDEX["infected"]
         ).to(DEVICE)
 
-        self.agents_infected_time = self.progression_wrapper.init_infected_time(
+        self.agents_infected_time = self.progression_model.init_infected_time(
             self.current_stages
         ).float()
 
@@ -300,7 +300,7 @@ class GradABM:
             potential_infected,
             death_indices,
             target,
-        ) = self.progression_wrapper.get_target_variables(
+        ) = self.progression_model.get_target_variables(
             self.proc_params["vaccine_efficiency_symptom"],
             self.current_stages,
             self.agents_next_stage_times,
@@ -325,7 +325,7 @@ class GradABM:
         if save_records:
             stage_records = shallow_copy(self.current_stages.tolist())
 
-        next_stages = self.progression_wrapper.update_current_stage(
+        next_stages = self.progression_model.update_current_stage(
             newly_exposed_today,
             self.current_stages,
             self.agents_next_stage_times,
@@ -334,7 +334,7 @@ class GradABM:
         )
 
         # update times with current_stages
-        self.agents_next_stage_times = self.progression_wrapper.update_next_stage_times(
+        self.agents_next_stage_times = self.progression_model.update_next_stage_times(
             self.proc_params["exposed_to_infected_time"],
             self.proc_params["infected_to_recovered_or_death_time"],
             newly_exposed_today,
