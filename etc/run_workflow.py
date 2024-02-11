@@ -21,12 +21,12 @@ input_data = {
 model_cfg_path = "etc/tests/Auckland_2019_measles/cfg/model.yml"
 vis_cfg_path = "etc/tests/Auckland_2019_measles/cfg/vis.yml"
 
-run_input = False
+run_input = True
 run_train = True
 run_predict = True
 run_vis = True
 
-workdir = "/tmp/gradabm_esr/Auckland_2019_measles3"
+workdir = "/tmp/gradabm_esr/Auckland_2019_measles"
 
 if run_input:
     input_wrapper(
