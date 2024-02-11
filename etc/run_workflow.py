@@ -21,7 +21,7 @@ input_data = {
 model_cfg_path = "etc/tests/Auckland_2019_measles/cfg/model.yml"
 vis_cfg_path = "etc/tests/Auckland_2019_measles/cfg/vis.yml"
 
-run_input = True
+run_input = False
 run_train = True
 run_predict = True
 run_vis = True
@@ -41,7 +41,7 @@ if run_input:
     )
 if run_train:
     train_wrapper(
-        join(workdir, "train"), model_cfg_path, run_prerun=False, use_prerun=True
+        join(workdir, "train"), model_cfg_path, run_prerun=True, use_prerun=True
     )
 
 if run_predict:
