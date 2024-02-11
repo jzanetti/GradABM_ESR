@@ -3,8 +3,10 @@ from os import makedirs
 from os.path import exists, join
 from random import sample as random_sample
 
+import ray
 from pandas import DataFrame
 
+from process import DEVICE
 from process.model import OPTIMIZATION_CFG, PRINT_MODEL_INFO
 from process.model.abm import init_abm
 from process.model.diags import save_outputs
@@ -80,18 +82,56 @@ def train_wrapper(
     # ----------------------------------------------
     # Step 3: Run the model training
     # ----------------------------------------------
+    if DEVICE.type == "cuda":
+        ray.init(num_cpus=32, include_dashboard=False)
+        cuda_processor = []
     ens_id = 0
     logger.info(f"Start model training...")
     for _ in range(read_cfg(cfg_path, key="train")["ensembles"]):
         for proc_interaction_path in all_paths["interaction_paths"]:
-            run_model_train(
-                join(workdir, "model", f"member_{ens_id}"),
-                random_sample(updated_cfg_paths, 1)[0],
-                all_paths["agents_path"],
-                proc_interaction_path,
-                all_paths["target_path"],
-            )
+
+            if DEVICE.type == "cuda":
+                cuda_processor.append(
+                    run_model_train_remote.remote(
+                        join(workdir, "model", f"member_{ens_id}"),
+                        random_sample(updated_cfg_paths, 1)[0],
+                        all_paths["agents_path"],
+                        proc_interaction_path,
+                        all_paths["target_path"],
+                    )
+                )
+            else:
+                run_model_train(
+                    join(workdir, "model", f"member_{ens_id}"),
+                    random_sample(updated_cfg_paths, 1)[0],
+                    all_paths["agents_path"],
+                    proc_interaction_path,
+                    all_paths["target_path"],
+                )
             ens_id += 1
+
+    if DEVICE.type == "cuda":
+        ray.get(cuda_processor)
+        ray.shutdown()
+
+
+@ray.remote(num_cpus=8)
+def run_model_train_remote(
+    workdir: str,
+    cfg_path: str,
+    agents_data_path: str,
+    interaction_data_path: str,
+    target_data_path: str,
+    prerun_params: list or None = None,  # type: ignore
+):
+    return run_model_train(
+        workdir,
+        cfg_path,
+        agents_data_path,
+        interaction_data_path,
+        target_data_path,
+        prerun_params=prerun_params,
+    )
 
 
 def run_model_train(
@@ -152,6 +192,7 @@ def run_model_train(
             print_grad=False,
         )
 
+        print(f"haha {epi} ...")
         logger.info(
             f"       * step {epi}: "
             f"Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; "
@@ -171,8 +212,7 @@ def run_model_train(
         logger.info("    * Saved smallest loss for the prerun ...")
         return smallest_loss
 
-    # logger.info(param_values_all)
-
+    # logger.info(param_values_all
     logger.info("    * Save trained model ...")
 
     save_outputs(

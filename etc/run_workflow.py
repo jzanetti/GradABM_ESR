@@ -8,7 +8,6 @@ from process.vis_wrapper import vis_wrapper
 
 # Disable all warnings
 warnings.filterwarnings("ignore")
-
 input_data = {
     "diary_path": "etc/tests/Auckland_2019_measles/raw_input/diaries.parquet",
     "synpop_path": "etc/tests/Auckland_2019_measles/raw_input/syspop_base.parquet",

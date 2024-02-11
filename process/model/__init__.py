@@ -27,7 +27,7 @@ REMOVE_WARM_UP_TIMESTEPS = None  # must be a integer or None
 
 SMALL_FIX_VALUE = 1e-9
 
-PRINT_MODEL_INFO = True
+PRINT_MODEL_INFO = False
 
 PRERUN_CFG = {"params_num": 7, "epochs": 3}
 
@@ -37,7 +37,7 @@ OPTIMIZATION_CFG = {
     "use_loss_scaler": False,
     "initial_loss": 1e10,
     "basic_lr": 0.1,
-    "num_epochs": 30,
+    "num_epochs": 15,
     "clip_grad_norm": 10.0,
     "use_temporal_params": True,
     "adaptive_lr": {"enable": True, "step": 15, "reduction_ratio": 0.9},
