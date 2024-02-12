@@ -5,7 +5,6 @@ import random
 
 import matplotlib.pyplot as plt
 import networkx as nx
-import numpy
 import pandas
 import torch
 from torch_geometric.data import Data
@@ -21,85 +20,63 @@ EGDE_COLOR_INDEX = {
     6: ["pharmacy", "k"],
 }
 
-# 136000: Eden Terrace, 133200: Queen Street
-agents_datapath = "/tmp/gradabm_esr/Auckland_2019_measles3/input/agents.parquet"
+sample_size = 1000
+
+agents_datapath = "/tmp/gradabm_esr/Auckland_2019_measles/input/agents.parquet"
 interactions_datapath = [
-    "/tmp/gradabm_esr/Auckland_2019_measles3/input/interaction_graph_cfg_member_0_0.parquet",
-    "/tmp/gradabm_esr/Auckland_2019_measles3/input/interaction_graph_cfg_member_0_1.parquet",
-    "/tmp/gradabm_esr/Auckland_2019_measles3/input/interaction_graph_cfg_member_0_2.parquet",
-    "/tmp/gradabm_esr/Auckland_2019_measles3/input/interaction_graph_cfg_member_1_0.parquet",
-    "/tmp/gradabm_esr/Auckland_2019_measles3/input/interaction_graph_cfg_member_1_1.parquet",
-    "/tmp/gradabm_esr/Auckland_2019_measles3/input/interaction_graph_cfg_member_1_2.parquet",
+    "/tmp/gradabm_esr/Auckland_2019_measles/input/interaction_graph_cfg_member_0_0.parquet",
+    "/tmp/gradabm_esr/Auckland_2019_measles/input/interaction_graph_cfg_member_0_1.parquet",
+    "/tmp/gradabm_esr/Auckland_2019_measles/input/interaction_graph_cfg_member_0_2.parquet",
+    "/tmp/gradabm_esr/Auckland_2019_measles/input/interaction_graph_cfg_member_1_0.parquet",
+    "/tmp/gradabm_esr/Auckland_2019_measles/input/interaction_graph_cfg_member_1_1.parquet",
+    "/tmp/gradabm_esr/Auckland_2019_measles/input/interaction_graph_cfg_member_1_2.parquet",
 ]
-address_datapath = "/tmp/syspop_test/Auckland/syspop_location.parquet"
 
 
 # pos = {agent_id: (lon, lat) for agent_id, lon, lat in zip(agents_data['id'], agents_data['lon'], agents_data['lat'])}
 agents_data = pandas.read_parquet(agents_datapath)
+agents_data = agents_data[agents_data["area"] == 146100]
+
 interactions_data = [
     pandas.read_parquet(file_path) for file_path in interactions_datapath
 ]
-address_data = pandas.read_parquet(address_datapath)
 
 # Combine the DataFrames vertically
-interactions_data = pandas.concat(interactions_data, ignore_index=True)
-interactions_data = interactions_data[interactions_data["spec"].isin([3, 4])]
+interactions_data = pandas.concat(
+    interactions_data, ignore_index=True
+).drop_duplicates()
+interactions_data = interactions_data[
+    (interactions_data["id_x"].isin(agents_data["id"]))
+    & (interactions_data["id_y"].isin(agents_data["id"]))
+]
 
-interactions_data = interactions_data.sample(5000)
+# interactions_data = interactions_data.sample(300)
 
-old_node_ids = list(interactions_data["id_x"].unique()) + list(
-    interactions_data["id_y"].unique()
+all_ids = list(interactions_data["id_x"].unique()) + list(
+    interactions_data["id_x"].unique()
 )
 
-new_id = {}
-for i, proc_id in enumerate(old_node_ids):
-    new_id[proc_id] = i
+map_ids = {}
+for i, proc_id in enumerate(all_ids):
+    map_ids[proc_id] = i
 
-interactions_data["id_x"] = interactions_data["id_x"].map(new_id)
-interactions_data["id_y"] = interactions_data["id_y"].map(new_id)
+interactions_data["id_x"] = interactions_data["id_x"].map(map_ids)
+interactions_data["id_y"] = interactions_data["id_y"].map(map_ids)
 
-merged_df = pandas.merge(
-    interactions_data, address_data, left_on="group", right_on="name"
+edge_index = (
+    torch.tensor(interactions_data[["id_x", "id_y"]].values, dtype=torch.long)
+    .t()
+    .contiguous()
 )
-merged_df = merged_df.drop_duplicates()
-node_coordinates = {}
-for _, row in merged_df.iterrows():
-    node_id = row.id_x
-    latitude = row.latitude + random.uniform(-0.0001, 0.0001)
-    longitude = row.longitude + random.uniform(-0.0001, 0.0001)
-    node_coordinates[node_id] = {"lat": latitude, "lon": longitude}
+# edge_index = edge_index / edge_index.max()
+edge_attr = torch.tensor(interactions_data[["spec"]].values, dtype=torch.int)
+data = Data(edge_index=edge_index, edge_attr=edge_attr)
 
-
-for _, row in merged_df.iterrows():
-    node_id = row.id_y
-    if node_id in node_coordinates:
-        continue
-    latitude = row.latitude + random.uniform(-0.0001, 0.0001)
-    longitude = row.longitude + random.uniform(-0.0001, 0.0001)
-    node_coordinates[node_id] = {"lat": latitude, "lon": longitude}
-
-idx = []
-idy = []
-for i, row in merged_df.iterrows():
-    idx.append(row["id_x"])
-    idy.append(row["id_y"])
-
-edge_index = torch.tensor(numpy.array([idx, idy]))
-all_nodes = edge_index.flatten()
-
-# Create pos tensor from node coordinates
-pos = torch.tensor(
-    [
-        [node_coordinates[int(node)]["lat"], node_coordinates[int(node)]["lon"]]
-        for node in all_nodes
-    ],
-    dtype=torch.float,
-)
-
-print("xxx")
-data = Data(edge_index=torch.tensor(numpy.array([idx, idy])), pos=pos)
-G = to_networkx(data, to_undirected=False)
-nx.draw_networkx(G, pos, width=0.3, alpha=0.5, with_labels=False, node_size=5)
+G = to_networkx(data, to_undirected=True)
+# pos = nx.spring_layout(G)
+_, ax = plt.subplots()
+# nx.draw(G, ax=ax, node_size=3, alpha=0.5)
+nx.draw_spring(G, ax=ax, node_size=5, alpha=0.3)
 
 plt.savefig("test.png")
 plt.close()

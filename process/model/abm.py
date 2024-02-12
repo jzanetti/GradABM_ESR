@@ -243,12 +243,23 @@ class GradABM:
         infection_gamma_scaling_factor,
         max_infectiousness_timesteps=3,
     ):
-        self.lam_gamma_integrals = self._get_lam_gamma_integrals(
-            shape,
-            scale,
-            infection_gamma_scaling_factor,
-            int(max_infectiousness_timesteps),
-        ).to(DEVICE)
+
+        gamma_dist = torch_gamma(concentration=shape, rate=1 / scale)
+
+        res = (
+            gamma_dist.log_prob(
+                torch.tensor(range(max([2, int(max_infectiousness_timesteps)])))
+            )
+            .exp()
+            .to(DEVICE)
+        )
+
+        if infection_gamma_scaling_factor is not None:
+            res_factor = infection_gamma_scaling_factor / max(res.tolist())
+            res = res * res_factor
+        res[0] = res[1] / 3.0
+
+        self.lam_gamma_integrals = res.to(DEVICE)
 
     def step(self, t, param_t, param_info, total_timesteps, save_records: bool = False):
         if t == 0:
@@ -360,19 +371,6 @@ class GradABM:
         self.current_time += 1
 
         return stage_records, death_indices, target
-
-    def _get_lam_gamma_integrals(self, a, b, infection_gamma_scaling_factor, total_t):
-        total_t = max([2, total_t])
-
-        gamma_dist = torch_gamma(concentration=a, rate=1 / b)
-
-        res = gamma_dist.log_prob(torch.tensor(range(total_t))).exp().to(DEVICE)
-
-        if infection_gamma_scaling_factor is not None:
-            res_factor = infection_gamma_scaling_factor / max(res.tolist())
-            res = res * res_factor
-        res[0] = res[1] / 3.0
-        return res
 
 
 def build_abm(

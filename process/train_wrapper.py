@@ -82,16 +82,16 @@ def train_wrapper(
     # ----------------------------------------------
     # Step 3: Run the model training
     # ----------------------------------------------
-    if DEVICE.type == "cuda":
+    if DEVICE.type == "cpu":
         ray.init(num_cpus=32, include_dashboard=False)
-        cuda_processor = []
+        cpu_processor = []
     ens_id = 0
     logger.info(f"Start model training...")
     for _ in range(read_cfg(cfg_path, key="train")["ensembles"]):
         for proc_interaction_path in all_paths["interaction_paths"]:
 
-            if DEVICE.type == "cuda":
-                cuda_processor.append(
+            if DEVICE.type == "cpu":
+                cpu_processor.append(
                     run_model_train_remote.remote(
                         join(workdir, "model", f"member_{ens_id}"),
                         random_sample(updated_cfg_paths, 1)[0],
@@ -110,8 +110,8 @@ def train_wrapper(
                 )
             ens_id += 1
 
-    if DEVICE.type == "cuda":
-        ray.get(cuda_processor)
+    if DEVICE.type == "cpu":
+        ray.get(cpu_processor)
         ray.shutdown()
 
 
