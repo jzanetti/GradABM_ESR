@@ -41,8 +41,7 @@ def school_closure(infected_idx, edge_attr, school_closure_cfg):
 def infected_case_isolation(
     infected_idx,
     contact_tracing_coverage,
-    isolation_compliance_rate,
-    isolation_intensity,
+    isolation_cfg,
     t,
     min_cases: int = 10,
 ):
@@ -54,9 +53,13 @@ def infected_case_isolation(
     Returns:
         _type_: Scaling factor for infected case
     """
+
+    if not isolation_cfg["enable"]:
+        return torch_ones_like(infected_idx)
+
     if (
-        (isolation_compliance_rate is None)
-        or (contact_tracing_coverage is None)
+        (isolation_cfg["compliance_rate"] is None)
+        or (isolation_cfg["isolation_sf"] is None)
         or (t == 0)
     ):
         return torch_ones_like(infected_idx)
@@ -76,7 +79,7 @@ def infected_case_isolation(
         infected_agents_length * contact_tracing_coverage
     )
     isolated_agents_length = int(
-        isolation_compliance_rate * identified_infected_agents_length
+        isolation_cfg["compliance_rate"] * identified_infected_agents_length
     )
 
     isolated_agents_index = torch_randperm(infected_agents_length)[
@@ -84,7 +87,7 @@ def infected_case_isolation(
     ]
     isolated_mask = torch_zeros_like(infected_agents)
     isolated_mask[infected_agents_index[isolated_agents_index]] = (
-        1.0 - isolation_intensity
+        1.0 - isolation_cfg["isolation_sf"]
     )
 
     isolated_sf = 1.0 - isolated_mask

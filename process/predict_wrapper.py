@@ -104,7 +104,6 @@ def predict_wrapper(workdir: str, cfg: str, max_ens: int = None):
                 proc_interaction_path,
                 trained_output,
             )
-
             ens_id += 1
 
     logger.info("Job done ...")

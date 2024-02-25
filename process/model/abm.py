@@ -13,6 +13,7 @@ from torch_geometric.data import Data
 from process import DEVICE
 from process.model import (
     ALL_PARAMS,
+    INITIAL_INFECTION_RATIO,
     OPTIMIZATION_CFG,
     PRERUN_CFG,
     PRINT_MODEL_INFO,
@@ -265,7 +266,8 @@ class GradABM:
         if t == 0:
             self.get_params(param_info, param_t)
             self.init_infected_tensors(
-                self.proc_params["initial_infected_percentage"] / 2.0,
+                self.proc_params["initial_infected_percentage"]
+                * INITIAL_INFECTION_RATIO["timestep_0"],
                 self.proc_params["infected_to_recovered_or_death_time"],
             )
             self.cal_lam_gamma_integrals(
@@ -280,7 +282,8 @@ class GradABM:
                     self.agents_infected_time,
                     self.agents_next_stage_times,
                 ) = self.create_random_infected_tensors(
-                    self.proc_params["initial_infected_percentage"] / 2.0,
+                    self.proc_params["initial_infected_percentage"]
+                    * INITIAL_INFECTION_RATIO["timestep_1"],
                     self.proc_params["infected_to_recovered_or_death_time"],
                     t,
                 )

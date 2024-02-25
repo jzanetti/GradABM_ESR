@@ -8,6 +8,8 @@ interaction_ratio:
   restaurant: 0.03 # 0.01
   pharmacy: 0.5
 
+max_interaction: 100
+
 ensemble:
   venue: 2  # for example, agents have options to go to different supermarkets, each ensemble will take one supermarket
   interaction: 3

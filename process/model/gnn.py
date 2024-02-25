@@ -70,10 +70,7 @@ def lam(
     integrals = torch_zeros_like(S_A_s)
     infected_idx = x_j[:, 4].long() == 2.0
     infected_times = t - x_j[infected_idx, 6]
-    try:
-        integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
-    except:
-        x = 3
+    integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
 
     # Isolate infected cases
     if t == -1:
@@ -83,8 +80,7 @@ def lam(
         isolated_sf = infected_case_isolation(
             infected_idx,
             contact_tracing_coverage,
-            outbreak_ctl_cfg["isolation"]["compliance_rate"],
-            outbreak_ctl_cfg["isolation"]["isolation_sf"],
+            outbreak_ctl_cfg["isolation"],
             t,
         )
 

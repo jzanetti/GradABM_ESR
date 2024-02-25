@@ -24,7 +24,11 @@ from process.utils.utils import print_params_increments, read_cfg, setup_logging
 
 
 def train_wrapper(
-    workdir: str, cfg_path: str, run_prerun: bool = False, use_prerun: bool = False
+    workdir: str,
+    cfg_path: str,
+    run_prerun: bool = False,
+    use_prerun: bool = False,
+    max_ens: int or None = None,
 ):
 
     if not exists(workdir):
@@ -87,8 +91,14 @@ def train_wrapper(
         cpu_processor = []
     ens_id = 0
     logger.info(f"Start model training...")
+
+    total_ens = read_cfg(cfg_path, key="train")["ensembles"] * len(
+        all_paths["interaction_paths"]
+    )
     for _ in range(read_cfg(cfg_path, key="train")["ensembles"]):
         for proc_interaction_path in all_paths["interaction_paths"]:
+
+            logger.info(f"Training the model: {ens_id} / {total_ens}")
 
             if DEVICE.type == "cpu":
                 cpu_processor.append(
@@ -109,6 +119,10 @@ def train_wrapper(
                     all_paths["target_path"],
                 )
             ens_id += 1
+
+            if max_ens is not None:
+                if ens_id > max_ens:
+                    break
 
     if DEVICE.type == "cpu":
         ray.get(cpu_processor)
@@ -192,7 +206,6 @@ def run_model_train(
             print_grad=False,
         )
 
-        print(f"haha {epi} ...")
         logger.info(
             f"       * step {epi}: "
             f"Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; "

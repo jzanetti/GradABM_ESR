@@ -2,6 +2,8 @@ from logging import getLogger
 from os.path import join
 from random import choice as random_choice
 
+from numpy import concatenate as numpy_concatenate
+from numpy.random import choice as numpy_choice
 from numpy.random import random as numpy_random
 from pandas import DataFrame, concat
 from pandas import merge as pandas_merge
@@ -159,6 +161,40 @@ def _agent_and_interaction_preproc(data: dict, runtime_cfg: dict, sa2: list) -> 
     return {"agents": agents_data, "interaction": interaction_data}
 
 
+def set_max_interaction_for_each_group(
+    sampled_df: DataFrame, max_interaction_for_each_venue: int or None
+) -> DataFrame:
+    """Make each interaction for a group less than a threshold
+
+    Args:
+        sampled_df (DataFrame): dataframe to be processed
+
+    Returns:
+        DataFrame: processed dataframe
+    """
+
+    if max_interaction_for_each_venue is None:
+        return sampled_df
+
+    sampled_df_counts = sampled_df["group"].value_counts()
+    over_max_group = sampled_df_counts[
+        sampled_df_counts > max_interaction_for_each_venue
+    ].index
+
+    over_max_index = numpy_concatenate(
+        [
+            numpy_choice(
+                sampled_df[sampled_df["group"] == group].index,
+                max_interaction_for_each_venue,
+                replace=False,
+            )
+            for group in over_max_group
+        ]
+    )
+    under_max_index = sampled_df[~sampled_df["group"].isin(over_max_group)].index
+    return sampled_df.loc[numpy_concatenate([over_max_index, under_max_index])]
+
+
 def create_agents_and_interactions(
     data: dict,
     sa2: list,
@@ -195,13 +231,10 @@ def create_agents_and_interactions(
     logger.info(f"   Combining all interaction inputs ...")
     sampled_df = concat(sampled_df, ignore_index=True).drop_duplicates()
 
-    if max_interaction_for_each_venue is not None:
-        logger.info(f"   Limiting interactions to {max_interaction_for_each_venue} ...")
-        sampled_df = sampled_df.groupby("group", group_keys=False).apply(
-            lambda x: x.sample(
-                min(len(x), max_interaction_for_each_venue), random_state=1
-            )
-        )
+    logger.info(f"   Setting max interaction for each group ...")
+    sampled_df = set_max_interaction_for_each_group(
+        sampled_df, max_interaction_for_each_venue
+    )
 
     logger.info("   Start interaction merging process ...")
     interactions = pandas_merge(sampled_df, sampled_df, on="group")

@@ -68,7 +68,7 @@ def input_wrapper(
                 sa2,
                 cfg["interaction_ratio"],
                 cfg["runtime_attributes"],
-                max_interaction_for_each_venue=None,
+                max_interaction_for_each_venue=cfg["max_interaction"],
             )
             agents_and_interactions_data["interactions"].to_parquet(
                 join(

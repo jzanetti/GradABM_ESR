@@ -42,3 +42,5 @@ OPTIMIZATION_CFG = {
     "use_temporal_params": True,
     "adaptive_lr": {"enable": True, "step": 15, "reduction_ratio": 0.9},
 }
+
+INITIAL_INFECTION_RATIO = {"timestep_0": 0.3, "timestep_1": 0.7}
