@@ -10,16 +10,16 @@ vis:
 
   vis:
     temporal_res: weeks
-    name: Manukau DHB
+    name: Capital and Coast DHB
     pred:
-      title_str: "JUNE-NZ validation, Manukau DHB"
+      title_str: "JUNE-NZ validation, Capital and Coast DHB"
       # "Number of cases (origin: 147900)"
     agents_map:
       enable: false
       individuals: false
       sa2_path: /home/zhangs/Github/JUNE_NZ_data/geography/statistical-area-2-2018-generalised.csv
       pop_based_interpolation:
-        enable: false
+        enable: true
         pop_path: https://github.com/jzanetti/JUNE_NZ_data/raw/main/demography/total_population.xlsx
       highlight_sa2:
         - 147900

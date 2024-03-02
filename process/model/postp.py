@@ -59,13 +59,25 @@ def postproc_pred(prediction, y, start_t, end_t) -> dict:
         prediction (_type_): _description_
         y (_type_): _description_
     """
+    try:
+        obs_data = y[0, :, 0].detach().cpu().numpy()
+    except AttributeError:
+        obs_data = y[0, :, 0]
+
     output = {
+        "obs": obs_data,
         "pred": prediction["prediction"][0, :].detach().cpu().numpy(),
-        "all_records": prediction["all_records"],
-        "y": y[0, :, 0].detach().cpu().numpy(),
-        "all_target_indices": prediction["all_target_indices"],
-        "agents_area": prediction["agents_area"],
-        "agents_ethnicity": prediction["agents_ethnicity"],
+        "stages": {
+            "all_records": prediction["all_records"],
+            "all_indices": prediction["all_target_indices"],
+        },
+        "agents": {
+            "area": prediction["agents_area"],
+            "ethnicity": prediction["agents_ethnicity"],
+            "gender": prediction["agents_gender"],
+            "age": prediction["agents_age"],
+            "vaccine": prediction["agents_vaccine"],
+        },
     }
     if start_t is None:
         start_t = 0
@@ -74,9 +86,9 @@ def postproc_pred(prediction, y, start_t, end_t) -> dict:
 
     output["pred"] = output["pred"][start_t:end_t]
 
-    if output["all_records"] is not None:
-        output["all_records"] = output["all_records"][start_t:end_t]
+    if output["stages"]["all_records"] is not None:
+        output["stages"]["all_records"] = output["stages"]["all_records"][start_t:end_t]
 
-    output["y"] = output["y"][start_t:end_t]
+    output["obs"] = output["obs"][start_t:end_t]
 
     return output

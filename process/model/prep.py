@@ -20,6 +20,29 @@ from process.utils.utils import read_cfg
 logger = getLogger()
 
 
+def get_learnable_params_scaler(
+    proc_param: str, learnable_params_scaler_update: dict or None
+) -> float:
+    """Obtain learnable paramters scaler for prediction
+
+    Args:
+        proc_param (str): current processing params such as infection_gamma_scaling_factor
+        learnable_params_scaler_update (dictorNone): Updated scaler
+
+    Returns:
+        float: _description_
+    """
+    if learnable_params_scaler_update is None:
+        proc_scaler_update = 1.0
+    else:
+        if proc_param in learnable_params_scaler_update:
+            proc_scaler_update = learnable_params_scaler_update[proc_param]
+        else:
+            proc_scaler_update = 1.0
+
+    return proc_scaler_update
+
+
 def get_all_pred_pahts(workdir: str) -> dict:
     """Get all paths required for prediction
 

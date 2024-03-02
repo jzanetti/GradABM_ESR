@@ -34,4 +34,3 @@ VACCINE_INDEX = {"yes": 1, "no": 0}
 # Device control
 # ---------------------------------
 DEVICE = torch_device(f"cuda:0")
-# DEVICE = torch_device("cpu")

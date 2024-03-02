@@ -9,24 +9,26 @@ from process.vis_wrapper import vis_wrapper
 # Disable all warnings
 warnings.filterwarnings("ignore")
 input_data = {
-    "diary_path": "etc/tests/Auckland_2019_measles/raw_input/diaries.parquet",
-    "synpop_path": "etc/tests/Auckland_2019_measles/raw_input/syspop_base.parquet",
+    "diary_path": "etc/tests/Auckland_2019_measles/raw_input/Wellington/diaries.parquet",
+    "synpop_path": "etc/tests/Auckland_2019_measles/raw_input/Wellington/syspop_base.parquet",
     "cfg": "etc/tests/Auckland_2019_measles/cfg/input.yml",
-    "target_data": "etc/tests/Auckland_2019_measles/raw_input/measles_cases_2019.parquet",
+    "target_data": "etc/tests/Auckland_2019_measles/raw_input/Wellington/measles_cases_2019.parquet",
     "target_index_range": {"start": 25, "end": 51},
-    "sa2_dhb_map_path": "etc/tests/Auckland_2019_measles/raw_input/dhb_and_sa2.parquet",
-    "dhb_list": ["Counties Manukau"],
+    "sa2_dhb_map_path": "etc/tests/Auckland_2019_measles/raw_input/Wellington/dhb_and_sa2.parquet",
+    "dhb_list": [
+        "Capital and Coast"
+    ],  # Counties Manukau, Auckland, Capital and Coast, Canterbury
 }
 
 model_cfg_path = "etc/tests/Auckland_2019_measles/cfg/model.yml"
 vis_cfg_path = "etc/tests/Auckland_2019_measles/cfg/vis.yml"
 
 run_input = False
-run_train = True
-run_predict = True
+run_train = False
+run_predict = False
 run_vis = True
 
-workdir = "/tmp/gradabm_esr/Auckland_2019_measles"
+workdir = "/tmp/gradabm_esr/Auckland_2019_measles_v7.0"
 
 if run_input:
     input_wrapper(
@@ -41,11 +43,20 @@ if run_input:
     )
 if run_train:
     train_wrapper(
-        join(workdir, "train"), model_cfg_path, run_prerun=False, use_prerun=True
+        join(workdir, "train"),
+        model_cfg_path,
+        run_prerun=True,
+        use_prerun=True,
+        max_ens=None,
     )
 
 if run_predict:
-    predict_wrapper(join(workdir, "predict"), model_cfg_path, max_ens=None)
+    predict_wrapper(
+        join(workdir, "predict"),
+        model_cfg_path,
+        max_ens=15,
+        target_data_path=join(workdir, "input", "target.parquet"),
+    )
 
 if run_vis:
     vis_wrapper(join(workdir, "vis"), vis_cfg_path)

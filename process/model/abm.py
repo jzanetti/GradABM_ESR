@@ -6,7 +6,6 @@ import torch.nn.functional as torch_func
 from numpy import isnan as numpy_isnan
 from pandas import DataFrame
 from pandas import read_csv as pandas_read_csv
-from torch import manual_seed as torch_seed
 from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 
@@ -15,6 +14,7 @@ from process.model import (
     ALL_PARAMS,
     INITIAL_INFECTION_RATIO,
     OPTIMIZATION_CFG,
+    PERTURBATE_FLAG_DEFAULT,
     PRERUN_CFG,
     PRINT_MODEL_INFO,
     STAGE_INDEX,
@@ -23,9 +23,8 @@ from process.model import (
 from process.model.gnn import GNN_model
 from process.model.loss_func import get_loss_func
 from process.model.param import build_param_model, obtain_param_cfg
-from process.model.prep import update_params_for_prerun
+from process.model.prep import get_learnable_params_scaler, update_params_for_prerun
 from process.model.progression import Progression_model
-from process.utils.utils import round_a_list
 
 logger = getLogger()
 
@@ -65,26 +64,28 @@ class GradABM:
         if params["predict_update"]["outbreak_ctl_cfg_update"] is not None:
             self.outbreak_ctl_cfg = params["predict_update"]["outbreak_ctl_cfg_update"]
 
-        self.perturbation = False
-        if params["predict_update"]["perturbation_update"] is not None:
-            self.perturbation = params["predict_update"]["perturbation_update"]
+        self.perturbation_flag = PERTURBATE_FLAG_DEFAULT
+        if params["predict_update"]["perturbation_flag_update"] is not None:
+            self.perturbation_flag = params["predict_update"][
+                "perturbation_flag_update"
+            ]
 
         # -----------------------------
         # Step 5: set up scaling_factor
         # -----------------------------
         for attr in ["age", "symptom", "ethnicity", "gender", "vaccine"]:
-            if attr == "vaccine":
+            if attr in ["vaccine", "ethnicity"]:
                 try:
-                    vaccine_cfg = params["predict_update"]["scaling_factor_update"][
-                        "vaccine"
+                    proc_attr_cfg = params["predict_update"]["scaling_factor_update"][
+                        attr
                     ]
                 except (KeyError, TypeError):
-                    vaccine_cfg = params["infection_cfg"]["scaling_factor"][
-                        "vaccine_dependant"
+                    proc_attr_cfg = params["infection_cfg"]["scaling_factor"][
+                        f"{attr}_dependant"
                     ]
                 params["infection_cfg"]["scaling_factor"][
                     f"{attr}_dependant"
-                ] = vaccine_cfg
+                ] = proc_attr_cfg
 
             setattr(
                 self,
@@ -95,6 +96,13 @@ class GradABM:
                 .float()
                 .to(DEVICE),
             )
+
+        # -----------------------------
+        # Step 6: set up scaling_factor
+        # -----------------------------
+        self.learnable_params_scaler_update = params["predict_update"][
+            "learnable_params_scaler_update"
+        ]
 
         # -----------------------------
         # Step 7: set up progress and GNN model
@@ -147,7 +155,7 @@ class GradABM:
             agents_data,
             lam_gamma_integrals,
             self.outbreak_ctl_cfg,
-            self.perturbation,
+            self.perturbation_flag,
         )
         # lam_t = lam_t.to("cpu")
         # print(t, f"after: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
@@ -225,11 +233,18 @@ class GradABM:
     def get_params(self, param_info: dict, param_t: list):
         self.proc_params = {}
         for proc_param in ALL_PARAMS:
+
+            # For prediction, we can set scaler for learnable parameters
+            proc_scaler_update = get_learnable_params_scaler(
+                proc_param, self.learnable_params_scaler_update
+            )
+
             if proc_param in param_info["learnable_param_order"]:
                 try:
-                    self.proc_params[proc_param] = param_t[
-                        param_info["learnable_param_order"].index(proc_param)
-                    ]
+                    self.proc_params[proc_param] = (
+                        param_t[param_info["learnable_param_order"].index(proc_param)]
+                        * proc_scaler_update
+                    )
                 except IndexError:  # if only one learnable param
                     self.proc_params[proc_param] = param_t
             else:
@@ -407,13 +422,15 @@ def build_abm(
         Returns:
             dict: Updated prediction configuration
         """
+
         if predict_cfg is not None:
             for param_key in [
-                "perturbation",
+                "perturbation_flag",
                 "use_random_infection",
                 "scaling_factor",
                 "outbreak_ctl",
                 "initial_infected_ids",
+                "learnable_params_scaler",
             ]:
                 try:
                     if param_key == "initial_infected_ids":
@@ -448,11 +465,12 @@ def build_abm(
         "infection_cfg": infection_cfg,
         "outbreak_ctl_cfg": outbreak_ctl_cfg,
         "predict_update": {
-            "perturbation_update": None,
+            "perturbation_flag_update": None,
             "scaling_factor_update": None,
             "outbreak_ctl_cfg_update": None,
             "initial_infected_ids_update": None,
             "use_random_infection_update": None,
+            "learnable_params_scaler_update": None,
         },
     }
 

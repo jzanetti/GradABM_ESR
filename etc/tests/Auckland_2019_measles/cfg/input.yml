@@ -16,8 +16,8 @@ ensemble:
 
 runtime_attributes:
   vaccine:
-    European: 0.75
-    Maori: 0.47
-    Pacific: 0.6
-    Asian: 0.89
-    MELAA: 0.75
+    European: 0.98
+    Maori: 0.65
+    Pacific: 0.4
+    Asian: 0.95
+    MELAA: 0.8

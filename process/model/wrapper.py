@@ -63,4 +63,7 @@ def run_gradabm_wrapper(
         "all_target_indices": all_target_indices,
         "agents_area": abm.agents_area.tolist(),
         "agents_ethnicity": abm.agents_ethnicity.tolist(),
+        "agents_age": abm.agents_age.tolist(),
+        "agents_vaccine": abm.agents_vaccine.tolist(),
+        "agents_gender": abm.agents_gender.tolist(),
     }

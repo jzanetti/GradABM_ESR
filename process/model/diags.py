@@ -21,7 +21,18 @@ from matplotlib.pyplot import (
     ylim,
     yscale,
 )
-from numpy import NaN, array, bincount, count_nonzero, isnan, max, min, random, unique
+from numpy import (
+    NaN,
+    array,
+    bincount,
+    count_nonzero,
+    isnan,
+    max,
+    median,
+    min,
+    random,
+    unique,
+)
 from numpy.ma import MaskedArray as ma_maskedarray
 from numpy.ma import average as ma_average
 from pandas import (
@@ -41,7 +52,7 @@ from shapely.wkt import loads
 from torch import load as torch_load
 from torch import save as torch_save
 
-from process.model import STAGE_INDEX
+from process.model import STAGE_INDEX, VIS_CFG
 
 logger = getLogger()
 
@@ -132,16 +143,16 @@ def plot_diags(
         # Plot agents
         # ----------------------------
         susceptible_counts = count_nonzero(
-            output["all_records"] == STAGE_INDEX["susceptible"], axis=1
+            output["stages"]["all_records"] == STAGE_INDEX["susceptible"], axis=1
         )
         exposed_counts = count_nonzero(
-            output["all_records"] == STAGE_INDEX["exposed"], axis=1
+            output["stages"]["all_records"] == STAGE_INDEX["exposed"], axis=1
         )
         infected_counts = count_nonzero(
-            output["all_records"] == STAGE_INDEX["infected"], axis=1
+            output["stages"]["all_records"] == STAGE_INDEX["infected"], axis=1
         )
         recovered_or_death_counts = count_nonzero(
-            output["all_records"] == STAGE_INDEX["recovered_or_death"], axis=1
+            output["stages"]["all_records"] == STAGE_INDEX["recovered_or_death"], axis=1
         )
 
         if i == 0:
@@ -192,19 +203,19 @@ def plot_diags(
         proc_latlons = []
         proc_attrs = []
         proc_indices = []
-        for t in range(0, len(outputs[0]["all_target_indices"])):
+        for t in range(0, len(outputs[0]["stages"]["all_indices"])):
             if vis_cfg["agents_map"]["individuals"]:
                 output = outputs[0]
-                proc_index = output["all_target_indices"][t]
+                proc_index = output["stages"]["all_indices"][t]
                 if len(proc_index) == 0:
                     continue
 
                 proc_latlon = obtain_sa2_info(
                     sa2,
-                    array(output["agents_area"])[proc_index],
-                    output["agents_ethnicity"],
+                    array(output["agents"]["area"])[proc_index],
+                    output["agents"]["ethnicity"],
                 )
-                proc_attr = array(output["agents_ethnicity"])[proc_index]
+                proc_attr = array(output["agents"]["ethnicity"])[proc_index]
 
                 scatter_colors = {0: "b", 1: "g", 2: "r", 3: "c", 4: "m"}
                 colors = [scatter_colors[val] for val in proc_attr]
@@ -225,13 +236,13 @@ def plot_diags(
             else:
                 print(f"    agent map at {t}")
                 for output in outputs:
-                    proc_index = output["all_target_indices"][t]
+                    proc_index = output["stages"]["all_indices"][t]
                     if len(proc_index) == 0:
                         continue
 
                     proc_indices.extend(proc_index)
 
-                all_agents_areas = array(output["agents_area"])[proc_indices]
+                all_agents_areas = array(output["agents"]["area"])[proc_indices]
                 occurrences = bincount(all_agents_areas)
 
                 occurrences_dict = dict(
@@ -358,14 +369,18 @@ def plot_diags(
     # ----------------------------
     # Plot losses
     # ----------------------------
+    epoch_loss_array = array(epoch_loss_lists)
+    epoch_loss_array_median = median(epoch_loss_array, 0)
     for epoch_loss_list in epoch_loss_lists:
         plot(epoch_loss_list, "k")
+    plot(epoch_loss_array_median, "r", label="Median")
 
     if apply_log_for_loss:
         yscale("log")
     xlabel("Epoch")
     ylabel("Loss")
     title("Loss")
+    legend()
     tight_layout()
     savefig(join(workdir, "loss.png"), bbox_inches="tight")
     close()
@@ -378,7 +393,7 @@ def plot_diags(
     for i, output in enumerate(outputs):
         my_pred = output["pred"].tolist()
         if i == 0 and plot_obs:
-            my_targ = output["y"].tolist()
+            my_targ = output["obs"].tolist()
             plot(my_targ, color="k", linewidth=2.0, label="Observed cases")
 
         if len(outputs) == 1:
@@ -387,14 +402,25 @@ def plot_diags(
             all_preds.append(my_pred)
 
     x = range(len(all_preds[0]))
-    if plot_err_range:
+    if VIS_CFG["pred_style"] == "range":
         all_preds = array(all_preds)
         y_min = min(all_preds, 0)
         y_max = max(all_preds, 0)
         ax.fill_between(x, y_min, y_max, alpha=0.5)
     else:
-        for proc_prd in all_preds:
-            plot(proc_prd, linewidth=0.75, color="grey", alpha=0.5, linestyle="--")
+        for i, proc_prd in enumerate(all_preds):
+            common_params = dict(
+                marker="o", linestyle="", color="grey", alpha=0.5, markersize=5
+            )
+
+            if VIS_CFG["pred_style"] == "line":
+                common_params["linestyle"] = "--"
+
+            if i == 0:
+                common_params["label"] = "Simulation/Prediction"
+
+            plot(proc_prd, linewidth=0.75, **common_params)
+            ylim(top=50.0)
 
     start_name = 0
     if predict_common_cfg["start"]["name"] is not None:

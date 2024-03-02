@@ -2,6 +2,8 @@ from logging import getLogger
 from os import makedirs
 from os.path import exists, join
 
+from pandas import read_parquet as pandas_read_parquet
+
 from process.model.abm import build_abm
 from process.model.diags import load_outputs
 from process.model.postp import postproc_pred, write_output
@@ -60,7 +62,9 @@ def produce_single_prediction(
     )
 
 
-def predict_wrapper(workdir: str, cfg: str, max_ens: int = None):
+def predict_wrapper(
+    workdir: str, cfg: str, max_ens: int = None, target_data_path: str = None
+):
     """Createing prediction based on previously trained model
 
     Args:
@@ -87,6 +91,13 @@ def predict_wrapper(workdir: str, cfg: str, max_ens: int = None):
         param_model_path = join(proc_trained_models_dir, "param_model.model")
 
         trained_output = load_outputs(param_path, output_info_path, param_model_path)
+
+        if target_data_path is not None:
+            target_data = pandas_read_parquet(target_data_path).to_numpy()
+            trained_output["output_info"]["target"] = target_data.reshape(
+                1, len(target_data), 1
+            )
+
         for proc_interaction_path in all_pred_paths["all_interactions_paths"]:
 
             if max_ens is not None and ens_id > max_ens:

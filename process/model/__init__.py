@@ -27,9 +27,9 @@ REMOVE_WARM_UP_TIMESTEPS = None  # must be a integer or None
 
 SMALL_FIX_VALUE = 1e-9
 
-PRINT_MODEL_INFO = False
+PRINT_MODEL_INFO = True
 
-PRERUN_CFG = {"params_num": 7, "epochs": 3}
+PRERUN_CFG = {"params_num": 7, "epochs": 10}
 
 OPTIMIZATION_CFG = {
     "opt_method": "sgd",
@@ -44,3 +44,7 @@ OPTIMIZATION_CFG = {
 }
 
 INITIAL_INFECTION_RATIO = {"timestep_0": 0.3, "timestep_1": 0.7}
+
+PERTURBATE_FLAG_DEFAULT = False
+
+VIS_CFG = {"pred_style": "marker"}  # marker or line or range
