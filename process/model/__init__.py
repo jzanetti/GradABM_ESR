@@ -45,6 +45,6 @@ OPTIMIZATION_CFG = {
 
 INITIAL_INFECTION_RATIO = {"timestep_0": 0.3, "timestep_1": 0.7}
 
-PERTURBATE_FLAG_DEFAULT = False
+PERTURBATE_FLAG_DEFAULT = None
 
 VIS_CFG = {"pred_style": "marker"}  # marker or line or range

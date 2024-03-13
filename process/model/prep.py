@@ -43,7 +43,7 @@ def get_learnable_params_scaler(
     return proc_scaler_update
 
 
-def get_all_pred_pahts(workdir: str) -> dict:
+def get_all_pred_pahts(workdir: str, agent_data_path: str or None) -> dict:
     """Get all paths required for prediction
 
     Args:
@@ -57,7 +57,10 @@ def get_all_pred_pahts(workdir: str) -> dict:
     """
 
     all_trained_models_dirs = glob(join(workdir, "..", "train", "model", "member_*"))
-    all_agents_path = join(workdir, "..", "input", "agents.parquet")
+    if agent_data_path is None:
+        all_agents_path = join(workdir, "..", "input", "agents.parquet")
+    else:
+        all_agents_path = agent_data_path
     all_interactions_paths = glob(
         join(workdir, "..", "input", "interaction_graph_cfg_member_*.parquet")
     )

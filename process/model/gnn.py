@@ -7,6 +7,7 @@ from torch import tensor as torch_tensor
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
+from process import ETHNICITY_INDEX
 from process.model.policy import infected_case_isolation, school_closure
 
 logger = getLogger()
@@ -17,6 +18,7 @@ def lam(
     x_j,
     edge_attr,
     t,
+    total_timesteps,
     vaccine_efficiency_spread,
     contact_tracing_coverage,
     scaling_factor,
@@ -51,6 +53,23 @@ def lam(
             )[vaccine_index]
             * vaccine_efficiency_spread
         )
+
+    # -------------------------------------------------
+    # Step 2:
+    # Pertubate the ethnicity scaling factor if needed
+    # -------------------------------------------------
+    if perturbation_flag is not None:
+        if "ethnicity" in perturbation_flag:
+            for proc_ethnicity in perturbation_flag["ethnicity"]:
+
+                if perturbation_flag["ethnicity"][proc_ethnicity]:
+                    proc_index = list(ETHNICITY_INDEX.keys()).index(proc_ethnicity)
+                    proc_factor = scaling_factor["ethnicity"][proc_index]
+                    scaling_factor["ethnicity"][proc_index] = random_uniform(
+                        proc_factor * 0.8,
+                        proc_factor * 1.2,
+                    )
+
     S_A_s = (
         scaling_factor["age"][x_i[:, 0].long()]
         * scaling_factor["gender"][x_i[:, 1].long()]
@@ -59,13 +78,13 @@ def lam(
     )  # age * sex * ethnicity dependant * vaccine
 
     # --------------------------------------------------
-    # Step 2: A_s_i is calculated based on the stage (x_j[:, 4]) of the target node x_j.
+    # Step 3: A_s_i is calculated based on the stage (x_j[:, 4]) of the target node x_j.
     #  It seems to represent an infectivity factor related to the stage.
     # --------------------------------------------------
     A_s_i = scaling_factor["symptom"][x_j[:, 4].long()]  # stage dependant
 
     # --------------------------------------------------
-    # Step 3: Scaling factor depending on the infection time
+    # Step 4: Scaling factor depending on the infection time
     # --------------------------------------------------
     integrals = torch_zeros_like(S_A_s)
     infected_idx = x_j[:, 4].long() == 2.0
@@ -89,11 +108,20 @@ def lam(
             infected_idx, edge_attr, outbreak_ctl_cfg["school_closure"]
         )
 
-    if perturbation_flag:
-        R = random_uniform(0.7, 1.3)
-    else:
-        R = 1.0
-    # import torch
+    # --------------------------------------------------
+    # Step 5: Overall scaling factor
+    # --------------------------------------------------
+    R = 1.0
+    if perturbation_flag is not None:
+        if "overall" in perturbation_flag:
+            if perturbation_flag["overall"]["enable"]:
+                if perturbation_flag["overall"]["temporal"]:
+                    k = (
+                        2.0 * t / total_timesteps
+                    )  # when t is half of the total timestep, k = 1.0, before this k < 1.0, after this k > 1.0
+                else:
+                    k = 1.0
+                R *= random_uniform(1.0 - k * 0.3, 1.0 + k * 0.3)
 
     # print(t, f"test1: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
     res = (
@@ -146,6 +174,7 @@ class GNN_model(MessagePassing):
         edge_index = data.edge_index
         edge_attr = data.edge_attr
         t = data.t
+        total_timesteps = data.total_timesteps
         vaccine_efficiency_spread = data.vaccine_efficiency_spread
         contact_tracing_coverage = data.contact_tracing_coverage
 
@@ -157,6 +186,7 @@ class GNN_model(MessagePassing):
             x=x,
             edge_attr=edge_attr,
             t=t,
+            total_timesteps=total_timesteps,
             vaccine_efficiency_spread=vaccine_efficiency_spread,
             contact_tracing_coverage=contact_tracing_coverage,
             scaling_factor={
@@ -177,6 +207,7 @@ class GNN_model(MessagePassing):
         x_j,
         edge_attr,
         t,
+        total_timesteps,
         vaccine_efficiency_spread,
         contact_tracing_coverage,
         scaling_factor,
@@ -189,6 +220,7 @@ class GNN_model(MessagePassing):
             x_j,
             edge_attr,
             t,
+            total_timesteps,
             vaccine_efficiency_spread,
             contact_tracing_coverage,
             scaling_factor,

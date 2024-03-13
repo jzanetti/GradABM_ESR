@@ -124,7 +124,7 @@ def _agent_and_interaction_preproc(data: dict, runtime_cfg: dict, sa2: list) -> 
         dict: processed agent and interaction
     """
 
-    def _assign_vaccine(ethnicity: str):
+    def _assign_vaccine(row):
         """Assign vaccination status
 
         Args:
@@ -133,13 +133,36 @@ def _agent_and_interaction_preproc(data: dict, runtime_cfg: dict, sa2: list) -> 
         Returns:
             _type_: _description_
         """
-        return "yes" if numpy_random() < runtime_cfg["vaccine"][ethnicity] else "no"
+
+        def _get_age_range(age):
+            if age <= 5:
+                return "0-5"
+            elif 6 <= age <= 50:
+                return "6-50"
+            else:
+                return "50-999"
+
+        age_range = _get_age_range(row["age"])
+        ethnicity = row["ethnicity"]
+        proc_coverage = runtime_cfg["vaccine"][ethnicity]
+
+        if age_range not in proc_coverage:
+            raise Exception(
+                f"Not able to find the proper age range for vaccination: {age_range}"
+            )
+        coverage = proc_coverage[age_range]  # Default to 1.0 if not found
+        return numpy_choice(["yes", "no"], p=[coverage, 1 - coverage])
+
+        # return "yes" if numpy_random() < runtime_cfg["vaccine"][ethnicity] else "no"
 
     interaction_data = data["interaction"]
     agents_data = data["agents"]
 
     if "vaccine" in runtime_cfg:
-        agents_data["vaccine"] = agents_data["ethnicity"].apply(_assign_vaccine)
+        agents_data["vaccine"] = agents_data[["age", "ethnicity"]].apply(
+            _assign_vaccine, axis=1
+        )
+        # agents_data["vaccine"] = agents_data["ethnicity"].apply(_assign_vaccine)
 
     if sa2 is not None:
         interaction_data = interaction_data[interaction_data["area"].isin(sa2)]

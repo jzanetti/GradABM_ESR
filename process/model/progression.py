@@ -63,6 +63,7 @@ class Progression_model(DiseaseProgression):
 
     def add_random_infected(
         self,
+        random_infected_ids,
         random_percentage,
         infected_to_recovered_time,
         agents_stages,
@@ -72,10 +73,21 @@ class Progression_model(DiseaseProgression):
         # device,
     ):
         # Add random infected:
-        random_infected_p = (random_percentage / 100.0) * torch_ones(
-            (self.num_agents, 1)
-        ).to(DEVICE)
-        random_infected_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
+        if random_infected_ids is None:
+            random_infected_p = (random_percentage / 100.0) * torch_ones(
+                (self.num_agents, 1)
+            ).to(DEVICE)
+            random_infected_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
+        else:
+            random_infected_p = torch_zeros((self.num_agents, 1)).to(DEVICE)
+            random_infected_ids_filter = torch_tensor(
+                [i in random_infected_ids[t] for i in range(len(agents_stages))]
+            ).to(DEVICE)
+            random_infected_p[:, 0][
+                (agents_stages == STAGE_INDEX["susceptible"])
+                & (random_infected_ids_filter)
+            ] = 1.0
+
         p = torch_hstack((random_infected_p, 1 - random_infected_p))
         cat_logits = torch_log(p + 1e-9)
 
@@ -108,8 +120,8 @@ class Progression_model(DiseaseProgression):
 
     def init_infected_agents(
         self,
-        initial_infected_percentage,
         initial_infected_ids,
+        initial_infected_percentage,
         agents_id,
         # device,
     ):
@@ -118,7 +130,6 @@ class Progression_model(DiseaseProgression):
             all_agents_ids = array(agents_id.tolist())
             indices = numpy_where(numpy_isin(all_agents_ids, initial_infected_ids))[0]
             agents_stages[indices] = STAGE_INDEX["infected"]
-
         else:
             prob_infected = (initial_infected_percentage / 100) * torch_ones(
                 (self.num_agents, 1)
@@ -192,6 +203,9 @@ class Progression_model(DiseaseProgression):
         newly_exposed_today = (
             current_stages == STAGE_INDEX["susceptible"]
         ) * potentially_exposed_today
+
+        # newly_exposed_today = (current_stages != -99999999) * potentially_exposed_today
+
         return newly_exposed_today
 
     def update_next_stage_times(

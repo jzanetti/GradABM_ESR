@@ -5,8 +5,12 @@ from pickle import dump as pickle_dump
 from process.model import REMOVE_WARM_UP_TIMESTEPS
 
 
-def write_output(output, epoch_loss_list, workdir, ens_id):
-    output_name = f"pred_{ens_id}.pickle"
+def write_output(output, epoch_loss_list, workdir, ens_id, output_prefix):
+    if output_prefix is None:
+        output_name = f"pred_{ens_id}.pickle"
+    else:
+        output_name = f"pred_{output_prefix}_{ens_id}.pickle"
+
     output_path = join(workdir, output_name)
 
     pickle_dump(

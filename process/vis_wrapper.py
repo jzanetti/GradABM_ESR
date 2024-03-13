@@ -1,5 +1,6 @@
 from glob import glob
-from os.path import join
+from os import makedirs
+from os.path import exists, join
 from pickle import load as pickle_load
 
 from process.model.diags import plot_diags
@@ -10,6 +11,9 @@ def vis_wrapper(workdir: str, cfg: str):
     cfg = read_cfg(cfg, key="vis")
     outputs = []
     epoch_losses = []
+
+    if not exists(workdir):
+        makedirs(workdir)
 
     all_prd_paths = glob(join(workdir, "..", "predict", "pred_*.pickle"))
     for proc_prd_path in all_prd_paths:
@@ -29,5 +33,5 @@ def vis_wrapper(workdir: str, cfg: str):
         cfg["vis"],
         cfg["timestep_cfg"],
         apply_log_for_loss=False,
-        plot_obs=True,
+        plot_obs=False,
     )

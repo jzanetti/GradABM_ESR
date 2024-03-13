@@ -2,6 +2,7 @@ from logging import getLogger
 from os import makedirs
 from os.path import exists, join
 
+from numpy.random import choice as numpy_choice
 from pandas import read_parquet as pandas_read_parquet
 
 from process.model.abm import build_abm
@@ -19,6 +20,7 @@ def produce_single_prediction(
     proc_agents_path: str,
     proc_interaction_path: str,
     trained_output: dict,
+    output_prefix: str or None,
 ):
 
     logger = getLogger()
@@ -59,11 +61,17 @@ def produce_single_prediction(
         trained_output["output_info"]["epoch_loss_list"],
         workdir,
         ens_id,
+        output_prefix,
     )
 
 
 def predict_wrapper(
-    workdir: str, cfg: str, max_ens: int = None, target_data_path: str = None
+    workdir: str,
+    cfg: str,
+    max_ens: int = None,
+    target_data_path: str = None,
+    output_prefix: str or None = None,
+    agent_data_path: str = None,
 ):
     """Createing prediction based on previously trained model
 
@@ -78,9 +86,14 @@ def predict_wrapper(
     logger = setup_logging(workdir)
 
     logger.info("Reading configuration ...")
-    cfg = read_cfg(cfg)
+    if isinstance(cfg, str):
+        cfg_list = [read_cfg(cfg)]
+    elif isinstance(cfg, list):
+        cfg_list = []
+        for proc_cfg in cfg:
+            cfg_list.append(read_cfg(proc_cfg))
 
-    all_pred_paths = get_all_pred_pahts(workdir)
+    all_pred_paths = get_all_pred_pahts(workdir, agent_data_path)
 
     ens_id = 0
 
@@ -110,10 +123,11 @@ def predict_wrapper(
             produce_single_prediction(
                 workdir,
                 ens_id,
-                cfg,
+                numpy_choice(cfg_list),
                 all_pred_paths["agents_path"],
                 proc_interaction_path,
                 trained_output,
+                output_prefix,
             )
             ens_id += 1
 

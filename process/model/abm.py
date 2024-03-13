@@ -1,4 +1,5 @@
 from copy import copy as shallow_copy
+from json import load as json_load
 from logging import getLogger
 
 import torch
@@ -127,6 +128,7 @@ class GradABM:
         vaccine_efficiency_spread,
         contact_tracing_coverage,
         t,
+        total_timesteps,
     ):
         all_nodeattr = torch.stack(
             (
@@ -147,6 +149,7 @@ class GradABM:
             vaccine_efficiency_spread=vaccine_efficiency_spread,
             contact_tracing_coverage=contact_tracing_coverage,
             t=t,
+            total_timesteps=total_timesteps,
         )
 
         # print(t, f"before: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
@@ -192,11 +195,13 @@ class GradABM:
 
     def create_random_infected_tensors(
         self,
+        random_infected_ids,
         random_percentage,
         infected_to_recovered_time,
         t,
     ):
         return self.progression_model.add_random_infected(
+            random_infected_ids,
             random_percentage,
             infected_to_recovered_time,
             self.current_stages,
@@ -208,12 +213,17 @@ class GradABM:
 
     def init_infected_tensors(
         self,
+        initial_infected_ids,
         initial_infected_percentage,
         infected_to_recovered_or_dead_time,
+        t,
     ):
+        proc_initial_infected_ids = None
+        if initial_infected_ids is not None:
+            proc_initial_infected_ids = initial_infected_ids[t]
         self.current_stages = self.progression_model.init_infected_agents(
+            proc_initial_infected_ids,
             initial_infected_percentage,
-            self.initial_infected_ids,
             self.agents_id,
         )
         self.agents_next_stage_times = (
@@ -279,11 +289,16 @@ class GradABM:
 
     def step(self, t, param_t, param_info, total_timesteps, save_records: bool = False):
         if t == 0:
+            # from numpy.random import uniform
+
+            # self.init_factor = uniform(0.3, 0.7)
             self.get_params(param_info, param_t)
             self.init_infected_tensors(
+                self.initial_infected_ids,
                 self.proc_params["initial_infected_percentage"]
                 * INITIAL_INFECTION_RATIO["timestep_0"],
                 self.proc_params["infected_to_recovered_or_death_time"],
+                t,
             )
             self.cal_lam_gamma_integrals(
                 self.proc_params["infection_gamma_shape"],
@@ -297,6 +312,7 @@ class GradABM:
                     self.agents_infected_time,
                     self.agents_next_stage_times,
                 ) = self.create_random_infected_tensors(
+                    self.initial_infected_ids,
                     self.proc_params["initial_infected_percentage"]
                     * INITIAL_INFECTION_RATIO["timestep_1"],
                     self.proc_params["infected_to_recovered_or_death_time"],
@@ -323,6 +339,7 @@ class GradABM:
             self.proc_params["vaccine_efficiency_spread"],
             self.proc_params["contact_tracing_coverage"],
             t,
+            total_timesteps,
         )
 
         (
@@ -435,18 +452,25 @@ def build_abm(
                 try:
                     if param_key == "initial_infected_ids":
                         initial_infected_ids_cfg = predict_cfg["initial_infected_ids"]
-                        all_infected_ids = []
-                        for proc_agent in initial_infected_ids_cfg:
-                            if isinstance(proc_agent, str):
-                                if proc_agent.endswith("csv"):
-                                    proc_data = pandas_read_csv(proc_agent)
-                                    all_infected_ids.extend(list(proc_data["id"]))
+                        all_infected_ids = {}
+                        for proc_t in initial_infected_ids_cfg:
+                            proc_value = initial_infected_ids_cfg[proc_t]
+                            if isinstance(proc_value, str):
+                                if proc_value[-4:] == "json":
+                                    with open(proc_value, "r") as json_file:
+                                        proc_data = json_load(json_file)
+
+                                    all_infected_ids[proc_t] = list(proc_data["id"])
                                 else:
                                     raise Exception(
-                                        "Not able to get the cfg for initial_infected_ids"
+                                        "Not supported initial infected ID file format"
                                     )
+                            elif isinstance(proc_value, list):
+                                all_infected_ids[proc_t] = proc_value
                             else:
-                                all_infected_ids.append(proc_agent)
+                                raise Exception(
+                                    "Not supported initial infected ID format"
+                                )
                         params["predict_update"][
                             f"{param_key}_update"
                         ] = all_infected_ids

@@ -420,7 +420,7 @@ def plot_diags(
                 common_params["label"] = "Simulation/Prediction"
 
             plot(proc_prd, linewidth=0.75, **common_params)
-            ylim(top=50.0)
+            # ylim(top=50.0)
 
     start_name = 0
     if predict_common_cfg["start"]["name"] is not None:
