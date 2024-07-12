@@ -30,12 +30,19 @@ def get_diary_data(syn_data_path: str, diary_data_path: str) -> DataFrame:
     df_melted = diary_data.melt(id_vars="id", var_name="hour", value_name="spec")
     merged_df = pandas_merge(df_melted, agents, on="id", how="left")
 
+    """
+    return {
+        "agents": agents,
+        "interaction": merged_df[["id", "spec", "area"]].dropna(),
+    }
+    """
+
     for proc_key in list(merged_df["spec"].unique()):
         proc_key_to_map = proc_key
         if proc_key == "travel":
             proc_key_to_map = "public_transport_trip"
-        # if proc_key == "restaurant":
-        #    proc_key_to_map = "restauraunt"
+        if proc_key == "restaurant":
+            proc_key_to_map = "restauraunt"
 
         merged_df.loc[merged_df["spec"] == proc_key, "group"] = merged_df[
             proc_key_to_map

@@ -14,10 +14,33 @@ ensemble:
   venue: 2  # for example, agents have options to go to different supermarkets, each ensemble will take one supermarket
   interaction: 3
 
+#runtime_attributes:
+#  vaccine:
+#    European: 0.98
+#    Maori: 0.65
+#    Pacific: 0.4
+#    Asian: 0.95
+#    MELAA: 0.8
+
 runtime_attributes:
   vaccine:
-    European: 0.98
-    Maori: 0.65
-    Pacific: 0.4
-    Asian: 0.95
-    MELAA: 0.8
+    European:
+      0-5: 0.842
+      6-50: 0.842
+      50-999: 1.0
+    Maori:
+      0-5: 0.703
+      6-50: 0.703
+      50-999: 1.0
+    Pacific:
+      0-5: 0.806
+      6-50: 0.806
+      50-999: 1.0
+    Asian:
+      0-5: 0.875
+      6-50: 0.875
+      50-999: 1.0
+    MELAA:
+      0-5: 0.842
+      6-50: 0.842
+      50-999: 1.0
