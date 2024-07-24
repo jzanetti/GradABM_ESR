@@ -56,7 +56,7 @@ def load_train_input(
     agents_data_path, interaction_data_path, target_data_path, cfg_path, use_test_data
 ):
     if use_test_data:
-        train_input = load_test_data(large_network=False)
+        train_input = load_test_data(large_network=True)
     else:
         train_input = prep_wrapper(
             agents_data_path, interaction_data_path, target_data_path, cfg_path
