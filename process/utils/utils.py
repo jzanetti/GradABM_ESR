@@ -32,6 +32,13 @@ def clear_cuda_memory(print_memory_usage: bool = False):
     collect()
 
 
+def print_prediction(prd, obs):
+    rounded_numbers = [round(num) for num in prd.tolist()]
+    rounded_numbers2 = [round(num) for num in obs.tolist()]
+    logger.info(f"         * predictions: {rounded_numbers}")
+    logger.info(f"         * observation: {rounded_numbers2}")
+
+
 def print_params_increments(param_values_list):
     if len(param_values_list) < 2:
         return

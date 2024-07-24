@@ -34,10 +34,10 @@ def postproc_train(prediction, y) -> dict:
         y (_type_): _description_
     """
     output = {
-        "pred": prediction["prediction"][0, :],
+        "pred": prediction["prediction"],
         "all_records": prediction["all_records"],
         "y": y[0, :, 0],
-        "all_target_indices": prediction["all_target_indices"],
+        # "all_target_indices": prediction["all_target_indices"],
         "agents_area": prediction["agents_area"],
         "agents_ethnicity": prediction["agents_ethnicity"],
     }

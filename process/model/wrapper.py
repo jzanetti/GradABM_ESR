@@ -28,29 +28,30 @@ def run_gradabm_wrapper(
     """
     predictions = []
     all_records = []
-    all_target_indices = []
 
     param_values_all = param_values_all.to(DEVICE)
 
+    pred_t = 0
     for time_step in range(training_num_steps):
+
         if OPTIMIZATION_CFG["use_temporal_params"]:
             param_values = param_values_all[0, time_step, :].to(DEVICE)
         else:
             param_values = param_values_all
 
-        proc_record, target_indices, pred_t = abm.step(
+        proc_record, pred_t = abm.step(
             time_step,
             param_values,
             param_info,
             training_num_steps,
+            pred_t,
             save_records=save_records,
         )
-        pred_t = pred_t.type(torch.float64)
-        predictions.append(pred_t.to(DEVICE))
-        all_records.append(proc_record)
-        all_target_indices.append(target_indices)
 
-    predictions = torch.stack(predictions, 0).reshape(1, -1)
+        predictions = pred_t.to(DEVICE)
+        all_records.append(proc_record)
+
+    predictions = predictions[-1]
 
     if any(item is None for item in all_records):
         all_records = None
@@ -60,7 +61,6 @@ def run_gradabm_wrapper(
     return {
         "prediction": predictions,
         "all_records": all_records,
-        "all_target_indices": all_target_indices,
         "agents_area": abm.agents_area.tolist(),
         "agents_ethnicity": abm.agents_ethnicity.tolist(),
         "agents_age": abm.agents_age.tolist(),

@@ -7,25 +7,27 @@ import torch.nn.functional as torch_func
 from numpy import isnan as numpy_isnan
 from pandas import DataFrame
 from pandas import read_csv as pandas_read_csv
+from torch import manual_seed
 from torch.distributions import Gamma as torch_gamma
 from torch_geometric.data import Data
 
 from process import DEVICE
 from process.model import (
     ALL_PARAMS,
-    INITIAL_INFECTION_RATIO,
     OPTIMIZATION_CFG,
     PERTURBATE_FLAG_DEFAULT,
     PRERUN_CFG,
     PRINT_MODEL_INFO,
     STAGE_INDEX,
+    TORCH_SEED,
     USE_RANDOM_INFECTION_DEFAULT,
 )
 from process.model.gnn import GNN_model
 from process.model.loss_func import get_loss_func
-from process.model.param import build_param_model, obtain_param_cfg
-from process.model.prep import get_learnable_params_scaler, update_params_for_prerun
+from process.model.param import build_param_model
+from process.model.prep import get_learnable_params_scaler
 from process.model.progression import Progression_model
+from process.model.utils import apply_gumbel_softmax
 
 logger = getLogger()
 
@@ -130,68 +132,61 @@ class GradABM:
         t,
         total_timesteps,
     ):
+
+        # --------------------------------------------
+        # Step 1: This step is to make sure that edgelist[1, :] starts from 0 to n ~
+        # it should has the same sequence/order as the self.current_stage etc.
+        #    Reason: edgelist[1, :] is considered the source node,
+        #            self.gnn_model will write the output at the source node
+        # --------------------------------------------
+        _, indices = torch.sort(self.all_edgelist[1, :])
+        sorted_all_edgelist = self.all_edgelist[:, indices]
+        sorted_all_edgeattr = self.all_edgeattr[:, indices]
+
+        # --------------------------------------------
+        # Step 2: Start creating the infectious weighting
+        # --------------------------------------------
         all_nodeattr = torch.stack(
             (
-                self.agents_age,  # 0: age
-                self.agents_gender,  # 1: sex
-                self.agents_ethnicity,  # 2: ethnicity
-                self.agents_vaccine,  # 3: vaccine
-                self.current_stages.detach(),  # 4: stage
-                self.agents_infected_index.to(DEVICE),  # 5: infected index
-                self.agents_infected_time.to(DEVICE),  # 6: infected time
+                self.agents_id,  # 0: id
+                self.agents_age,  # 1: age
+                self.agents_gender,  # 2: sex
+                self.agents_ethnicity,  # 3: ethnicity
+                self.agents_vaccine,  # 4: vaccine
+                self.current_stages.detach(),  # 5: stage
+                self.agents_infected_index.to(DEVICE),  # 6: infected index
+                self.agents_infected_time.to(DEVICE),  # 7: infected time
             )
         ).t()
 
         agents_data = Data(
             all_nodeattr,
-            edge_index=self.all_edgelist,
-            edge_attr=self.all_edgeattr,
+            edge_index=sorted_all_edgelist,
+            edge_attr=sorted_all_edgeattr,
             vaccine_efficiency_spread=vaccine_efficiency_spread,
             contact_tracing_coverage=contact_tracing_coverage,
             t=t,
             total_timesteps=total_timesteps,
         )
 
-        # print(t, f"before: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
-        # self.gnn_model goes to forward() in gnn_model function
-        lam_t = self.gnn_model(
+        infectious_weights = self.gnn_model(
             agents_data,
             lam_gamma_integrals,
             self.outbreak_ctl_cfg,
             self.perturbation_flag,
         )
-        # lam_t = lam_t.to("cpu")
-        # print(t, f"after: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
 
-        prob_not_infected = torch.exp(-lam_t)
-        p = torch.hstack((1 - prob_not_infected, prob_not_infected))
-        cat_logits = torch.log(p + 1e-9)
+        # --------------------------------------------
+        # Step 3: Creating newly infected agents
+        # --------------------------------------------
+        prob_yes = 1.0 - torch.exp(-infectious_weights)
+        potentially_exposed_today = apply_gumbel_softmax(prob_yes, temporal_seed=t)
 
-        infection_distribution_percentage = None
-        # infection_distribution_percentage = {
-        #    value: count / len(lam_t[:, 0].tolist()) * 100
-        #    for value, count in Counter(lam_t[:, 0].tolist()).items()
-        # }
-        while True:
-
-            potentially_exposed_today = torch_func.gumbel_softmax(
-                logits=cat_logits, tau=1, hard=True, dim=1
-            )[:, 0]
-
-            if not numpy_isnan(
-                potentially_exposed_today.cpu().clone().detach().numpy()
-            ).any():
-                break
-
-        newly_exposed_today = self.progression_model.get_newly_exposed(
+        newly_exposed_mask = self.progression_model.get_newly_exposed(
             self.current_stages, potentially_exposed_today
         )
-        # newly_exposed_today = potentially_exposed_today
-        return (
-            newly_exposed_today,
-            potentially_exposed_today,
-            infection_distribution_percentage,
-        )
+
+        return newly_exposed_mask
 
     def create_random_infected_tensors(
         self,
@@ -221,17 +216,18 @@ class GradABM:
         proc_initial_infected_ids = None
         if initial_infected_ids is not None:
             proc_initial_infected_ids = initial_infected_ids[t]
+
         self.current_stages = self.progression_model.init_infected_agents(
             proc_initial_infected_ids,
             initial_infected_percentage,
             self.agents_id,
         )
+
         self.agents_next_stage_times = (
             self.progression_model.init_agents_next_stage_time(
                 self.current_stages, infected_to_recovered_or_dead_time
             ).float()
         )
-
         self.agents_infected_index = (
             self.current_stages == STAGE_INDEX["infected"]
         ).to(DEVICE)
@@ -287,16 +283,21 @@ class GradABM:
 
         self.lam_gamma_integrals = res.to(DEVICE)
 
-    def step(self, t, param_t, param_info, total_timesteps, save_records: bool = False):
-        if t == 0:
-            # from numpy.random import uniform
+    def step(
+        self,
+        t,
+        param_t,
+        param_info,
+        total_timesteps,
+        target,
+        save_records: bool = False,
+    ):
 
-            # self.init_factor = uniform(0.3, 0.7)
+        if t == 0:
             self.get_params(param_info, param_t)
             self.init_infected_tensors(
                 self.initial_infected_ids,
-                self.proc_params["initial_infected_percentage"]
-                * INITIAL_INFECTION_RATIO["timestep_0"],
+                self.proc_params["initial_infected_percentage"],
                 self.proc_params["infected_to_recovered_or_death_time"],
                 t,
             )
@@ -306,19 +307,6 @@ class GradABM:
                 self.proc_params["infection_gamma_scaling_factor"],
             )
         else:
-            if t == 1:
-                (
-                    self.current_stages,
-                    self.agents_infected_time,
-                    self.agents_next_stage_times,
-                ) = self.create_random_infected_tensors(
-                    self.initial_infected_ids,
-                    self.proc_params["initial_infected_percentage"]
-                    * INITIAL_INFECTION_RATIO["timestep_1"],
-                    self.proc_params["infected_to_recovered_or_death_time"],
-                    t,
-                )
-
             if self.use_random_infection:
                 (
                     self.current_stages,
@@ -330,11 +318,7 @@ class GradABM:
                     t,
                 )
 
-        (
-            newly_exposed_today,
-            potentially_exposed_today,
-            infection_ratio_distribution_percentage,
-        ) = self.get_newly_exposed(
+        newly_exposed_mask = self.get_newly_exposed(
             self.lam_gamma_integrals,
             self.proc_params["vaccine_efficiency_spread"],
             self.proc_params["contact_tracing_coverage"],
@@ -342,15 +326,12 @@ class GradABM:
             total_timesteps,
         )
 
-        (
-            potential_infected,
-            death_indices,
-            target,
-        ) = self.progression_model.get_target_variables(
+        target = self.progression_model.get_target_variables(
             self.proc_params["vaccine_efficiency_symptom"],
             self.current_stages,
-            self.agents_next_stage_times,
+            target,
             t,
+            total_timesteps,
         )
 
         if PRINT_MODEL_INFO:
@@ -358,8 +339,7 @@ class GradABM:
                 f"  {t}: ",
                 f"exposed: {self.current_stages.tolist().count(1.0)} |",
                 f"infected: {self.current_stages.tolist().count(2.0)} |",
-                f"newly exposed: {int(newly_exposed_today.sum().item())} |",
-                f"potential newly exposed: {int(potentially_exposed_today.sum().item())} |",
+                f"newly exposed: {int(newly_exposed_mask.sum().item())} |",
                 # f"infection_ratio_distribution_percentage: {infection_ratio_distribution_percentage}",
                 f"target: {int(target)}",
             )
@@ -372,18 +352,16 @@ class GradABM:
             stage_records = shallow_copy(self.current_stages.tolist())
 
         next_stages = self.progression_model.update_current_stage(
-            newly_exposed_today,
+            newly_exposed_mask,
             self.current_stages,
             self.agents_next_stage_times,
-            death_indices,
             t,
         )
 
-        # update times with current_stages
         self.agents_next_stage_times = self.progression_model.update_next_stage_times(
             self.proc_params["exposed_to_infected_time"],
             self.proc_params["infected_to_recovered_or_death_time"],
-            newly_exposed_today,
+            newly_exposed_mask,
             self.current_stages,
             self.agents_next_stage_times,
             t,
@@ -394,18 +372,14 @@ class GradABM:
             (next_stages == STAGE_INDEX["infected"]).bool().to(DEVICE)
         )
 
-        # self.agents_infected_index = (
-        #    (self.current_stages == STAGE_INDEX["infected"]).bool().to(DEVICE)
-        # )
-        # self.agents_infected_index[recovered_dead_now.bool()] = False
-        self.agents_infected_time[newly_exposed_today.bool()] = (
+        self.agents_infected_time[newly_exposed_mask.bool()] = (
             t + self.proc_params["exposed_to_infected_time"]
         )
 
         self.current_stages = next_stages
         self.current_time += 1
 
-        return stage_records, death_indices, target
+        return stage_records, target
 
 
 def build_abm(
@@ -504,11 +478,7 @@ def build_abm(
     return abm
 
 
-def init_abm(
-    model_inputs: dict,
-    cfg: dict,
-    prerun_params: list or None = None,  # type: ignore
-) -> dict:
+def init_abm(model_inputs: dict, cfg: dict) -> dict:
     """Initiaite an ABM model
 
     Args:
@@ -528,16 +498,11 @@ def init_abm(
     )
 
     logger.info("     * Creating initial parameters (to be trained) ...")
-
-    if prerun_params:
-        num_epochs = PRERUN_CFG["epochs"]
-        cfg = update_params_for_prerun(cfg)
-    else:
-        num_epochs = OPTIMIZATION_CFG["num_epochs"]
+    num_epochs = OPTIMIZATION_CFG["num_epochs"]
 
     param_model = build_param_model(
-        obtain_param_cfg(cfg["learnable_params"], prerun_params),
-        OPTIMIZATION_CFG["num_epochs"],
+        cfg["learnable_params"],
+        OPTIMIZATION_CFG["use_temporal_params"],
     )
 
     logger.info("     * Creating loss function ...")

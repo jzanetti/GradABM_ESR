@@ -1,13 +1,16 @@
 from logging import getLogger
 from random import uniform as random_uniform
 
+from torch import cat as torch_cat
 from torch import int8 as torch_int8
 from torch import ones_like as torch_ones_like
 from torch import tensor as torch_tensor
+from torch import vstack as torch_vstack
 from torch import zeros_like as torch_zeros_like
 from torch_geometric.nn import MessagePassing
 
 from process import ETHNICITY_INDEX
+from process.model import STAGE_INDEX
 from process.model.policy import infected_case_isolation, school_closure
 
 logger = getLogger()
@@ -27,70 +30,76 @@ def lam(
     perturbation_flag,
 ):
     """
-    self.agents_ages,  # 0: age
-    self.agents_sex,  # 1: sex
-    self.agents_ethnicity,  # 2: ethnicity
-    self.agents_vaccine,  # 3: vaccine
-    self.current_stages.detach(),  # 4: stage
-    self.agents_infected_index.to(self.device),  # 5: infected index
-    self.agents_infected_time.to(self.device),  # 6: infected time
-    """
+    self.agents_id,  # 0: id
+    self.agents_ages,  # 1: age
+    self.agents_sex,  # 2: sex
+    self.agents_ethnicity,  # 3: ethnicity
+    self.agents_vaccine,  # 4: vaccine
+    self.current_stages.detach(),  # 5: stage
+    self.agents_infected_index.to(self.device),  # 6: infected index
+    self.agents_infected_time.to(self.device),  # 7: infected time
 
+    x_i: node receive information;
+    x_j: node send information
+    """
     # --------------------------------------------------
-    # Step 1:
-    # This section calculates S_A_s, which appears
-    # to represent a susceptibility factor for each edge.
-    # It seems to depend on the age, sex, ethnicity,
-    # and vaccination status of the source node x_i.
+    # Step 1 (Target Susceptible by vaccine):
     # --------------------------------------------------
-    vaccine_index = x_i[:, 3].long()
+    vaccine_index = x_i[:, 4].long()
     if t == -1:
         scaling_factor_vaccine = torch_ones_like(vaccine_index)
     else:
-        scaling_factor_vaccine = (
-            torch_tensor(
-                scaling_factor["vaccine"].tolist(), device=vaccine_index.device
-            )[vaccine_index]
-            * vaccine_efficiency_spread
+        scaling_factor_vaccine_yes = (
+            vaccine_efficiency_spread * (x_i[:, 4] == 1.0).float()
         )
+        scaling_factor_vaccine_no = 1.0 * (x_i[:, 4] == 0.0).float()
+        scaling_factor_vaccine = scaling_factor_vaccine_yes + scaling_factor_vaccine_no
 
     # -------------------------------------------------
-    # Step 2:
-    # Pertubate the ethnicity scaling factor if needed
+    # Step 2 (Target Susceptible by age, gender, ethnicity):
     # -------------------------------------------------
-    if perturbation_flag is not None:
-        if "ethnicity" in perturbation_flag:
-            for proc_ethnicity in perturbation_flag["ethnicity"]:
-
-                if perturbation_flag["ethnicity"][proc_ethnicity]:
-                    proc_index = list(ETHNICITY_INDEX.keys()).index(proc_ethnicity)
-                    proc_factor = scaling_factor["ethnicity"][proc_index]
-                    scaling_factor["ethnicity"][proc_index] = random_uniform(
-                        proc_factor * 0.8,
-                        proc_factor * 1.2,
-                    )
-
-    S_A_s = (
-        scaling_factor["age"][x_i[:, 0].long()]
-        * scaling_factor["gender"][x_i[:, 1].long()]
-        * scaling_factor["ethnicity"][x_i[:, 2].long()]
-        * scaling_factor_vaccine
-    )  # age * sex * ethnicity dependant * vaccine
+    scaling_factor_age_gender_ethnicity = (
+        scaling_factor["age"][x_i[:, 1].long()]
+        * scaling_factor["gender"][x_i[:, 2].long()]
+        * scaling_factor["ethnicity"][x_i[:, 3].long()]
+    )
 
     # --------------------------------------------------
-    # Step 3: A_s_i is calculated based on the stage (x_j[:, 4]) of the target node x_j.
-    #  It seems to represent an infectivity factor related to the stage.
+    # Step 3 (Source Infectiousness by age, gender, ethnicity):
     # --------------------------------------------------
-    A_s_i = scaling_factor["symptom"][x_j[:, 4].long()]  # stage dependant
+    scaling_factor_symptom = torch_ones_like(scaling_factor_age_gender_ethnicity)
+    scaling_factor_symptom_infected = (
+        3.0 * (x_j[:, 5] == STAGE_INDEX["infected"]).float()
+    )
+    scaling_factor_symptom_exposed = (
+        0.75 * (x_j[:, 5] == STAGE_INDEX["exposed"]).float()
+    )
+    scaling_factor_symptom_others = (
+        1.0
+        * (
+            (x_j[:, 5] != STAGE_INDEX["infected"])
+            & (x_j[:, 5] != STAGE_INDEX["exposed"])
+        ).float()
+    )
+    scaling_factor_symptom = (
+        scaling_factor_symptom_others
+        + scaling_factor_symptom_infected
+        + scaling_factor_symptom_exposed
+    )
 
     # --------------------------------------------------
-    # Step 4: Scaling factor depending on the infection time
+    # Step 4 (Source Infectiousness by infection time):
     # --------------------------------------------------
-    integrals = torch_zeros_like(S_A_s)
-    infected_idx = x_j[:, 4].long() == 2.0
-    infected_times = t - x_j[infected_idx, 6]
-    integrals[infected_idx] = lam_gamma_integrals[infected_times.long()]
+    scaling_factor_infection_time = torch_zeros_like(scaling_factor_symptom)
+    infected_idx = x_j[:, 6].long().bool()
+    infected_times = t - x_j[infected_idx, 7]
+    scaling_factor_infection_time[infected_idx] = lam_gamma_integrals[
+        infected_times.long()
+    ]
 
+    # --------------------------------------------------
+    # Step 5: Outbreak measures
+    # --------------------------------------------------
     # Isolate infected cases
     if t == -1:
         isolated_sf = torch_ones_like(infected_idx)
@@ -108,36 +117,21 @@ def lam(
             infected_idx, edge_attr, outbreak_ctl_cfg["school_closure"]
         )
 
-    # --------------------------------------------------
-    # Step 5: Overall scaling factor
-    # --------------------------------------------------
-    R = 1.0
-    if perturbation_flag is not None:
-        if "overall" in perturbation_flag:
-            if perturbation_flag["overall"]["enable"]:
-                if perturbation_flag["overall"]["temporal"]:
-                    k = (
-                        2.0 * t / total_timesteps
-                    )  # when t is half of the total timestep, k = 1.0, before this k < 1.0, after this k > 1.0
-                else:
-                    k = 1.0
-                R *= random_uniform(1.0 - k * 0.3, 1.0 + k * 0.3)
-
-    # print(t, f"test1: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb")
     res = (
-        R
-        * S_A_s
-        * A_s_i
+
+        scaling_factor_vaccine
+        * scaling_factor_age_gender_ethnicity
+        * scaling_factor_symptom
+        * scaling_factor_infection_time
         * edge_attr[2, :]
-        * integrals
+        # * integrals
         * isolated_sf
         * school_closure_sf
         / edge_attr[1, :]
     )  # Edge attribute 1 is B_n
 
-    # print(t, integrals[infected_idx].sum(), res.sum())
-
     return res.view(-1, 1)
+    # return torch_cat((x_j[:, 0].view(-1, 1), res.view(-1, 1)), dim=1)
 
 
 class GNN_model(MessagePassing):
@@ -159,8 +153,6 @@ class GNN_model(MessagePassing):
         self.scaling_factor_ethnicity = scaling_factor_ethnicity
         self.scaling_factor_vaccine = scaling_factor_vaccine
         self.scaling_factor_symptom = scaling_factor_symptom
-        # self.lam_gamma_integrals = lam_gamma_integrals
-        # self.device = device
 
     def forward(
         self,
@@ -215,6 +207,15 @@ class GNN_model(MessagePassing):
         outbreak_ctl_cfg,
         perturbation_flag,
     ):
+        """By default, We generally refer to x_i as the nodes which aggregate information,
+        and to x_j as the nodes which send information along the edges.
+
+        The default message passing flow is source_to_target:
+        so x_i refers to the targets and x_j refers to the source nodes.
+        If you want to change this behavior, you can change the message passing flow via flow="target_to_source".
+
+        See details: https://github.com/pyg-team/pytorch_geometric/issues/699
+        """
         tmp = self.lam(
             x_i,
             x_j,
@@ -227,7 +228,7 @@ class GNN_model(MessagePassing):
             lam_gamma_integrals,
             outbreak_ctl_cfg,
             perturbation_flag,
-        )  # tmp has shape [E, 2 * in_channels]
+        )
         return tmp
 
     def vis_debug_graph(self, edge_index, source_node=304667):

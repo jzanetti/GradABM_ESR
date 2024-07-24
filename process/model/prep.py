@@ -141,7 +141,7 @@ def prep_wrapper(
         agents_data_path, interaction_data_path, target_data_path, cfg["interaction"]
     )
 
-    return model_inputs, cfg
+    return {"model_inputs": model_inputs, "cfg": cfg}
 
 
 def prep_env():

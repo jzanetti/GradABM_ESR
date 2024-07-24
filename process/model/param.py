@@ -16,14 +16,6 @@ def param_model_forward(param_model, target):
     return param_values_all
 
 
-def obtain_param_cfg(learnable_params_cfg: dict, prerun_params: dict) -> dict:
-    if prerun_params is not None:
-        for param_name in prerun_params:
-            learnable_params_cfg[param_name]["enable"] = False
-            learnable_params_cfg[param_name]["default"] = prerun_params[param_name]
-    return learnable_params_cfg
-
-
 def build_param_model(learnable_param: dict, use_temporal_params: bool):
     """Building parameters model
 

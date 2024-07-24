@@ -23,14 +23,14 @@ train:
         - 0.0   # 0: susceptible
         - 0.3  # 1: exposed (default: 0.33)
         - 1.0  # 2: infected (default: 0.72)
-        - 0.1   # 3: recovered
+        - 0.0   # 3: recovered
         - 0.0   # 4: death
       ethnicity_dependant:
-        - 0.001 # 0: European
-        - 3.0 # 1: Maori
-        - 50.0 # 2: Pacific
-        - 0.01 # 3: Asian
-        - 1.1 # 3: MELAA
+        - 1.0 # 0: European
+        - 1.0 # 1: Maori
+        - 1.0 # 2: Pacific
+        - 1.0 # 3: Asian
+        - 1.0 # 3: MELAA
       gender_dependant:
         - 1.0 # 0: Male
         - 1.0 # 1: Female
@@ -94,24 +94,24 @@ train:
   learnable_params:
     vaccine_efficiency_spread:
       enable: true
-      min: 0.1 # 0.3, 0.001
-      max: 0.5 # 0.8, 0.01
-      default: 0.3 # 0.3, 0.6, 0.005
+      min: 0.0001 # 0.3, 0.001
+      max: 0.9 # 0.8, 0.01
+      default: 0.1 # 0.3, 0.6, 0.005
     vaccine_efficiency_symptom:
       enable: true
       min: 0.001 # 0.001
       max: 0.02 # 0.05
       default: 0.005 # 0.02 
     contact_tracing_coverage:
-      enable: true
+      enable: false
       min: 0.3
       max: 0.7
       default: 0.5
     initial_infected_percentage:
       enable: true
-      min: 0.01
-      max: 0.06
-      default: 0.03 # 0.001
+      min: 0.00001
+      max: 0.7
+      default: 0.3 # 0.001
     random_infected_percentage:
       enable: false 
       min: 0.05
@@ -128,20 +128,20 @@ train:
       max: 3.0
       default: 1.0
     infection_gamma_shape:
-      enable: true
+      enable: false
       min: 1.0
       max: 3.0
       default: 1.50
     infection_gamma_scale:
-      enable: true
+      enable: false
       min: 0.01
       max: 30.0
       default: 10.0
     infection_gamma_scaling_factor: # decide how fast the disease spread
       enable: true
-      min: 300.0  # 0.1
-      max: 700.0 # 1.5
-      default: 500.0 # 0.75
+      min: 0.01 # 0.1
+      max: 1.0 # 1.5
+      default: 0.1 # 0.75
 
   # -------------------------------------------
   # Section 1.5: Prerun: the following parameters will be tested in the prerun

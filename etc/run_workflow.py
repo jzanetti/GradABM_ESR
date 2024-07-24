@@ -3,7 +3,7 @@ from os.path import join
 
 from process.input_wrapper import input_wrapper
 from process.predict_wrapper import predict_wrapper
-from process.train_wrapper import train_wrapper
+from process.train_wrapper import run_model_train_ens
 from process.vis_wrapper import vis_wrapper
 
 # Disable all warnings
@@ -32,28 +32,20 @@ input_data = {
     "target_index_range": {"start": 25, "end": 51},
     "sa2_dhb_map_path": "etc/tests/Auckland_2019_measles/raw_input_v1.0/Auckland/dhb_and_sa2.parquet",
     "dhb_list": [
-        "Counties Manukau"
+        "Auckland"
     ],  # Counties Manukau, Auckland, Capital and Coast, Canterbury
 }
 
 input_cfg_path = "etc/tests/Auckland_2019_measles/cfg/input.yml"
-model_cfg_path = "etc/tests/papers/Manukau/cfg/model.yml"
+model_cfg_path = "etc/tests/Auckland_2019_measles/cfg/model.yml"
 vis_cfg_path = "etc/tests/papers/Manukau/cfg/vis.yml"
 
 run_input = False
-run_train = False
-run_predict = True
-run_vis = True
-
-workdir = "etc/tests/papers/Manukau"
-
-
-run_input = True
-run_train = False
+run_train = True
 run_predict = False
 run_vis = False
 
-workdir = "etc/tests/debug/Manukau"
+workdir = "etc/tests/debug/Auckland"
 
 if run_input:
     input_wrapper(
@@ -67,13 +59,7 @@ if run_input:
         dhb_list=input_data["dhb_list"],
     )
 if run_train:
-    train_wrapper(
-        join(workdir, "train"),
-        model_cfg_path,
-        run_prerun=True,
-        use_prerun=True,
-        max_ens=None,
-    )
+    run_model_train_ens(join(workdir, "train"), model_cfg_path)
 
 if run_predict:
     predict_wrapper(

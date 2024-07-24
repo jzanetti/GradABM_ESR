@@ -15,6 +15,7 @@ ALL_PARAMS = [
     "infection_gamma_scaling_factor",
 ]
 
+"""
 STAGE_INDEX = {
     "susceptible": 0,
     "exposed": 1,
@@ -22,29 +23,47 @@ STAGE_INDEX = {
     "recovered_or_death": 3,
     "death": 4,
 }
+"""
+
+# SUSCEPTIBLE_STAGE_INDEX = 0
+STAGE_INDEX = {
+    "susceptible": 1,
+    "exposed": 2,
+    "infected": 4,
+    "recovered_or_death": 8,
+    # "death": 5,
+}
 
 REMOVE_WARM_UP_TIMESTEPS = None  # must be a integer or None
 
 SMALL_FIX_VALUE = 1e-9
 
-PRINT_MODEL_INFO = True
+PRINT_MODEL_INFO = False
 
 PRERUN_CFG = {"params_num": 7, "epochs": 10}
 
+# ----------------------------------------
+# when use_temporal_params is True, it is recommended to use:
+# - opt_method: sgd, basic_lr: 0.01, clip_grad_norm: 10.0
+# otherwise:
+# - opt_method: adam, basic_lr: 0.1, clip_grad_norm: None
+# ----------------------------------------
 OPTIMIZATION_CFG = {
     "opt_method": "sgd",
     "opt_metric": "mse",
     "use_loss_scaler": False,
     "initial_loss": 1e10,
-    "basic_lr": 0.1,
-    "num_epochs": 15,
+    "basic_lr": 0.01,
+    "num_epochs": 500,
     "clip_grad_norm": 10.0,
     "use_temporal_params": True,
-    "adaptive_lr": {"enable": True, "step": 15, "reduction_ratio": 0.9},
+    "adaptive_lr": {"enable": False, "step": 15, "reduction_ratio": 0.9},
 }
-
-INITIAL_INFECTION_RATIO = {"timestep_0": 0.3, "timestep_1": 0.7}
 
 PERTURBATE_FLAG_DEFAULT = None
 
 VIS_CFG = {"pred_style": "marker"}  # marker or line or range
+
+TORCH_SEED = 123
+
+MISSING_DATA = -99

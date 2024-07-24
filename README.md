@@ -1,4 +1,4 @@
-JUNE-NZ
+GradABM-ESR
 =============
 
 This is the implementation of the differentiable ABM at ESR, this is part of the ``JUNE-NZ`` public health modelling framework at ESR. 
@@ -14,4 +14,39 @@ The model setup is described below:
 **The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
 
 Contact: sijin.zhang@esr.cri.nz
+
+Simple Example
+==================
+
+The following codes give a simple workflow (with the provided test data) on how to train the GradABM model:
+
+```
+    cfg, model_inputs = load_train_input(use_test_data=True)
+    abm = init_abm(model_inputs, cfg)
+
+    for epi in range(abm["num_epochs"]):
+        param_values_all = param_model_forward(
+            abm["param_model"], model_inputs["target"]
+        )
+        predictions = run_gradabm_wrapper(
+            abm["model"],
+            param_values_all,
+            abm["param_model"].param_info(),
+            model_inputs["total_timesteps"],
+            save_records=False,
+        )
+
+        output = postproc_train(predictions, model_inputs["target"])
+
+        loss_optimization(
+            abm["loss_def"]["loss_func"](output["y"], output["pred"]),
+            abm["param_model"],
+            abm["loss_def"],
+            print_grad=False,
+        )
+
+```
+
+![My GIF](etc/gradabm_ESR.gif)
+
 

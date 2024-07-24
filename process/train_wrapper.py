@@ -1,34 +1,27 @@
 from logging import getLogger
 from os import makedirs
 from os.path import exists, join
-from random import sample as random_sample
 
-import ray
-from pandas import DataFrame
-
-from process import DEVICE
+from process.input.test import load_test_data
 from process.model import OPTIMIZATION_CFG, PRINT_MODEL_INFO
 from process.model.abm import init_abm
 from process.model.diags import save_outputs
 from process.model.loss_func import loss_optimization
 from process.model.param import param_model_forward
 from process.model.postp import postproc_train
-from process.model.prep import (
-    get_prerun_params,
-    get_train_all_paths,
-    prep_wrapper,
-    update_train_cfg_using_prerun,
-)
+from process.model.prep import get_train_all_paths, prep_wrapper
 from process.model.wrapper import run_gradabm_wrapper
-from process.utils.utils import print_params_increments, read_cfg, setup_logging
+from process.utils.utils import (
+    print_params_increments,
+    print_prediction,
+    read_cfg,
+    setup_logging,
+)
 
 
-def train_wrapper(
+def run_model_train_ens(
     workdir: str,
     cfg_path: str,
-    run_prerun: bool = False,
-    use_prerun: bool = False,
-    max_ens: int or None = None,
 ):
 
     if not exists(workdir):
@@ -38,57 +31,6 @@ def train_wrapper(
 
     all_paths = get_train_all_paths(join(workdir, ".."))
 
-    # ----------------------------------------------
-    # Step 1: Run prerun (sensitivity studies)
-    # ----------------------------------------------
-    if run_prerun:
-        all_lost = {}
-        all_params = get_prerun_params(read_cfg(cfg_path, key="train"))
-
-        all_keys = all_params[0].keys()
-        all_lost = {key: [] for key in all_keys}
-        all_lost["lost"] = []
-
-        logger.info(f"All pre-run experiments to run: {len(all_params)} ...")
-
-        for i, proc_prep_param in enumerate(all_params):
-
-            logger.info(f"   - start prerun exp {i}/{len(all_params)}")
-
-            proc_pre_run_lost = run_model_train(
-                join(workdir, "prerun"),
-                cfg_path,
-                all_paths["agents_path"],
-                all_paths["interaction_paths"][0],
-                all_paths["target_path"],
-                prerun_params=proc_prep_param,
-            )
-            for proc_param_key in proc_prep_param:
-                all_lost[proc_param_key].append(proc_prep_param[proc_param_key])
-            all_lost["lost"].append(proc_pre_run_lost)
-
-        DataFrame(all_lost).sort_values(by="lost").to_csv(
-            join(workdir, "prerun", "prerun_stats.csv"), index=False
-        )
-        logger.info("Prerun: job completed")
-
-    # ----------------------------------------------
-    # Step 2: Updated configuration file using the pre-run stats
-    # ----------------------------------------------
-    if use_prerun:
-        logger.info(f"Updated configuration file based on prerun...")
-        updated_cfg_paths = update_train_cfg_using_prerun(
-            join(workdir, "updated_cfg"), cfg_path
-        )
-    else:
-        updated_cfg_paths = [cfg_path]
-
-    # ----------------------------------------------
-    # Step 3: Run the model training
-    # ----------------------------------------------
-    if DEVICE.type == "cpu":
-        ray.init(num_cpus=32, include_dashboard=False)
-        cpu_processor = []
     ens_id = 0
     logger.info(f"Start model training...")
 
@@ -100,61 +42,36 @@ def train_wrapper(
 
             logger.info(f"Training the model: {ens_id} / {total_ens}")
 
-            if DEVICE.type == "cpu":
-                cpu_processor.append(
-                    run_model_train_remote.remote(
-                        join(workdir, "model", f"member_{ens_id}"),
-                        random_sample(updated_cfg_paths, 1)[0],
-                        all_paths["agents_path"],
-                        proc_interaction_path,
-                        all_paths["target_path"],
-                    )
-                )
-            else:
-                run_model_train(
-                    join(workdir, "model", f"member_{ens_id}"),
-                    random_sample(updated_cfg_paths, 1)[0],
-                    all_paths["agents_path"],
-                    proc_interaction_path,
-                    all_paths["target_path"],
-                )
+            train(
+                join(workdir, "model", f"member_{ens_id}"),
+                cfg_path=cfg_path,
+                agents_data_path=all_paths["agents_path"],
+                interaction_data_path=proc_interaction_path,
+                target_data_path=all_paths["target_path"],
+            )
             ens_id += 1
 
-            if max_ens is not None:
-                if ens_id > max_ens:
-                    break
 
-    if DEVICE.type == "cpu":
-        ray.get(cpu_processor)
-        ray.shutdown()
-
-
-@ray.remote(num_cpus=8)
-def run_model_train_remote(
-    workdir: str,
-    cfg_path: str,
-    agents_data_path: str,
-    interaction_data_path: str,
-    target_data_path: str,
-    prerun_params: list or None = None,  # type: ignore
+def load_train_input(
+    agents_data_path, interaction_data_path, target_data_path, cfg_path, use_test_data
 ):
-    return run_model_train(
-        workdir,
-        cfg_path,
-        agents_data_path,
-        interaction_data_path,
-        target_data_path,
-        prerun_params=prerun_params,
-    )
+    if use_test_data:
+        train_input = load_test_data(large_network=False)
+    else:
+        train_input = prep_wrapper(
+            agents_data_path, interaction_data_path, target_data_path, cfg_path
+        )
+
+    return train_input["cfg"], train_input["model_inputs"]
 
 
-def run_model_train(
+def train(
     workdir: str,
-    cfg_path: str,
-    agents_data_path: str,
-    interaction_data_path: str,
-    target_data_path: str,
-    prerun_params: list or None = None,  # type: ignore
+    cfg_path: str or None = None,
+    agents_data_path: str or None = None,
+    interaction_data_path: str or None = None,
+    target_data_path: str or None = None,
+    use_test_data: bool = False,
 ):
     """Run the model training for GradABM_ESR
 
@@ -173,12 +90,16 @@ def run_model_train(
     logger = getLogger()
 
     logger.info("    * Preprocessing ...")
-    model_inputs, cfg = prep_wrapper(
-        agents_data_path, interaction_data_path, target_data_path, cfg_path
+    cfg, model_inputs = load_train_input(
+        agents_data_path,
+        interaction_data_path,
+        target_data_path,
+        cfg_path,
+        use_test_data,
     )
 
     logger.info("    * Building and running ABM ...")
-    abm = init_abm(model_inputs, cfg, prerun_params)
+    abm = init_abm(model_inputs, cfg)
 
     epoch_loss_list = []
     param_values_list = []
@@ -207,10 +128,11 @@ def run_model_train(
         )
 
         logger.info(
-            f"       * step {epi}: "
+            f"    * step {epi}: "
             f"Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; "
             f"Lr: {round(abm['loss_def']['opt'].param_groups[0]['lr'], 5)}"
         )
+        print_prediction(output["pred"], output["y"])
 
         if PRINT_MODEL_INFO:
             print_params_increments(param_values_list)
@@ -221,11 +143,6 @@ def run_model_train(
         epoch_loss_list.append(epoch_loss)
         param_values_list.append(param_values_all)
 
-    if prerun_params:
-        logger.info("    * Saved smallest loss for the prerun ...")
-        return smallest_loss
-
-    # logger.info(param_values_all
     logger.info("    * Save trained model ...")
 
     save_outputs(
