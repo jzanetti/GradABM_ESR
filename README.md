@@ -1,9 +1,11 @@
 GradABM-ESR
 =============
 
-This is the implementation of the differentiable agent based modelling (ABM )system at ESR, this is part of the ``JUNE-NZ`` public health modelling framework at ESR. 
+This is the implementation of the GNN-LSTM powered agent based modelling (ABM) system at ESR, this is part of the ``JUNE-NZ`` public health modelling framework at ESR. 
 
-_Agent Based Models (ABMs) have emerged as a powerful tool for investigating complex node interactions. In this project, we developed a tensorized and differentiable ABM that seamlessly integrates into [Pytorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/). This integration allows us to harness the power of modern GPU units and enable the real-time and fully automatic parameter calibration by calculating the gradient of the loss function with respect to the weights of neural network through backpropagation._
+_Agent Based Models (ABMs) have emerged as a powerful tool for investigating complex node interactions. In this project, we developed a tensorized and differentiable ABM that seamlessly integrates into [Pytorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/). This integration allows us to harness the power of Graph Neural Network (GNN), modern GPU units and enable the real-time and fully automatic parameter calibration by calculating the gradient of the loss function with respect to the weights of neural network through backpropagation._
+
+Note that this approach is taking from the concept of [AgentTorch](https://github.com/AgentTorch/AgentTorch).
 
 As an example, the model is setup for investigating the measles transmission in our community:
 
