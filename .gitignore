@@ -9,3 +9,6 @@ log
 *.csv
 .vscode
 data
+etc/dashboard/testdata
+papers
+PHA_report_202403
