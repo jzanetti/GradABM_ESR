@@ -21,29 +21,36 @@ A simple implementation
 The following codes give a simple workflow (with the provided test data) on how to train the GradABM model:
 
 ```
-    cfg, model_inputs = load_train_input(use_test_data=True)
-    abm = init_abm(model_inputs, cfg)
+from gradabm_esr.process.input.test import load_test_data
+from gradabm_esr.process.model.abm import init_abm
+from gradabm_esr.process.model.diags import save_outputs
+from gradabm_esr.process.model.loss_func import loss_optimization
+from gradabm_esr.process.model.param import param_model_forward
+from gradabm_esr.process.model.postp import postproc_train
 
-    for epi in range(abm["num_epochs"]):
-        param_values_all = param_model_forward(
-            abm["param_model"], model_inputs["target"]
-        )
-        predictions = run_gradabm_wrapper(
-            abm["model"],
-            param_values_all,
-            abm["param_model"].param_info(),
-            model_inputs["total_timesteps"],
-            save_records=False,
-        )
+cfg, model_inputs = load_train_input(use_test_data=True)
+abm = init_abm(model_inputs, cfg)
 
-        output = postproc_train(predictions, model_inputs["target"])
+for epi in range(abm["num_epochs"]):
+    param_values_all = param_model_forward(
+        abm["param_model"], model_inputs["target"]
+    )
+    predictions = run_gradabm_wrapper(
+        abm["model"],
+        param_values_all,
+        abm["param_model"].param_info(),
+        model_inputs["total_timesteps"],
+        save_records=False,
+    )
 
-        loss_optimization(
-            abm["loss_def"]["loss_func"](output["y"], output["pred"]),
-            abm["param_model"],
-            abm["loss_def"],
-            print_grad=False,
-        )
+    output = postproc_train(predictions, model_inputs["target"])
+
+    loss_optimization(
+        abm["loss_def"]["loss_func"](output["y"], output["pred"]),
+        abm["param_model"],
+        abm["loss_def"],
+        print_grad=False,
+    )
 
 ```
 
