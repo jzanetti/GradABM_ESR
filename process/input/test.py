@@ -1,3 +1,4 @@
+from gzip import open as gzip_open
 from itertools import combinations
 from pickle import load as pickle_load
 
@@ -109,7 +110,9 @@ def load_test_cfg() -> dict:
 def load_test_data(large_network: bool = False) -> dict:
 
     if large_network:
-        return pickle_load(open("process/input/testdata/measles_dataset.pickle", "rb"))
+        with gzip_open("process/input/testdata/measles_dataset.pickle.gz", "rb") as f:
+            data = pickle_load(f)
+        return data
     else:
 
         target = [0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 0.0, 0.0, 0.0, 0.0]
