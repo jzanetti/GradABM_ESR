@@ -1,21 +1,21 @@
 GradABM-ESR
 =============
 
-This is the implementation of the differentiable ABM at ESR, this is part of the ``JUNE-NZ`` public health modelling framework at ESR. 
+This is the implementation of the GNN-LSTM powered agent based modelling (ABM) system at ESR, this is part of the ``JUNE-NZ`` public health modelling framework at ESR. 
 
-_Agent Based Models (ABMs) have emerged as a powerful tool for investigating complex social interactions, particularly in the context of public health and infectious disease investigation. In this project, we developed a tensorized and differentiable agent-based model that seamlessly integrates into the Pytorch machine learning framework (known as JUNE-NZ). This integration allows us to harness the power of modern GPU units and enable the real-time and fully automatic parameter calibration by calculating the gradient of the loss function with respect to the weights of neural network through backpropagation._
+_Agent Based Models (ABMs) have emerged as a powerful tool for investigating complex node interactions. In this project, we developed a tensorized and differentiable ABM that seamlessly integrates into [Pytorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/). This integration allows us to harness the power of Graph Neural Network (GNN), modern GPU units and enable the real-time and fully automatic parameter calibration by calculating the gradient of the loss function with respect to the weights of neural network through backpropagation._
 
-_The model was employed to investigate the 2019 measles outbreak occurred in New Zealand, and a good skill is shown for simulating the outbreak’s peak accurately. Moreover, we extensively explored various policy interventions within the model and thoroughly examined their potential impacts._
+Note that this approach is taking from the concept of [AgentTorch](https://github.com/AgentTorch/AgentTorch).
 
-The model setup is described below:
+As an example, the model is setup for investigating the measles transmission in our community:
 
-<img src="etc/gradabm_illustration.PNG" alt="GradABM" width="100%" height="100%">
+<img src="etc/gradabm_illustration.PNG" alt="GradABM" width="75%" height="75%">
 
 **The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
 
 Contact: sijin.zhang@esr.cri.nz
 
-Simple Example
+A simple implementation
 ==================
 
 The following codes give a simple workflow (with the provided test data) on how to train the GradABM model:
