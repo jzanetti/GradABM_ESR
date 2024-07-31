@@ -20,7 +20,7 @@ from process.model import (
     PRINT_MODEL_INFO,
     STAGE_INDEX,
     TORCH_SEED,
-    USE_RANDOM_INFECTION_DEFAULT,
+    USE_RANDOM_EXPOSED_DEFAULT,
 )
 from process.model.gnn import GNN_model
 from process.model.loss_func import get_loss_func
@@ -57,10 +57,10 @@ class GradABM:
         self.initial_infected_ids = params["predict_update"][
             "initial_infected_ids_update"
         ]
-        self.use_random_infection = USE_RANDOM_INFECTION_DEFAULT
-        if params["predict_update"]["use_random_infection_update"] is not None:
-            self.use_random_infection = params["predict_update"][
-                "use_random_infection_update"
+        self.use_random_exposed = USE_RANDOM_EXPOSED_DEFAULT
+        if params["predict_update"]["use_random_exposed_update"] is not None:
+            self.use_random_exposed = params["predict_update"][
+                "use_random_exposed_update"
             ]
 
         self.outbreak_ctl_cfg = params["outbreak_ctl_cfg"]
@@ -188,22 +188,13 @@ class GradABM:
 
         return newly_exposed_mask
 
-    def create_random_infected_tensors(
+    def create_random_exposed_tensors(
         self,
-        random_infected_ids,
         random_percentage,
-        infected_to_recovered_time,
-        t,
     ):
-        return self.progression_model.add_random_infected(
-            random_infected_ids,
+        return self.progression_model.add_random_exposed(
             random_percentage,
-            infected_to_recovered_time,
             self.current_stages,
-            self.agents_infected_time,
-            self.agents_next_stage_times,
-            t,
-            # self.device,
         )
 
     def init_infected_tensors(
@@ -293,6 +284,7 @@ class GradABM:
         save_records: bool = False,
     ):
 
+        random_exposed_mask = None
         if t == 0:
             self.get_params(param_info, param_t)
             self.init_infected_tensors(
@@ -307,15 +299,9 @@ class GradABM:
                 self.proc_params["infection_gamma_scaling_factor"],
             )
         else:
-            if self.use_random_infection:
-                (
-                    self.current_stages,
-                    self.agents_infected_time,
-                    self.agents_next_stage_times,
-                ) = self.create_random_infected_tensors(
+            if self.use_random_exposed:
+                random_exposed_mask = self.create_random_exposed_tensors(
                     self.proc_params["random_infected_percentage"],
-                    self.proc_params["infected_to_recovered_or_death_time"],
-                    t,
                 )
 
         newly_exposed_mask = self.get_newly_exposed(
@@ -326,7 +312,7 @@ class GradABM:
             total_timesteps,
         )
 
-        target = self.progression_model.get_target_variables(
+        target, target_indices = self.progression_model.get_target_variables(
             self.proc_params["vaccine_efficiency_symptom"],
             self.current_stages,
             target,
@@ -341,7 +327,7 @@ class GradABM:
                 f"infected: {self.current_stages.tolist().count(2.0)} |",
                 f"newly exposed: {int(newly_exposed_mask.sum().item())} |",
                 # f"infection_ratio_distribution_percentage: {infection_ratio_distribution_percentage}",
-                f"target: {int(target)}",
+                f"target: {int(target[0][t].sum())}",
             )
             print(
                 f" - Memory: {round(torch.cuda.memory_allocated(0) / (1024**3), 3) } Gb"
@@ -353,6 +339,7 @@ class GradABM:
 
         next_stages = self.progression_model.update_current_stage(
             newly_exposed_mask,
+            random_exposed_mask,
             self.current_stages,
             self.agents_next_stage_times,
             t,
@@ -379,7 +366,7 @@ class GradABM:
         self.current_stages = next_stages
         self.current_time += 1
 
-        return stage_records, target
+        return stage_records, target, target_indices
 
 
 def build_abm(
@@ -417,7 +404,7 @@ def build_abm(
         if predict_cfg is not None:
             for param_key in [
                 "perturbation_flag",
-                "use_random_infection",
+                "use_random_exposed",
                 "scaling_factor",
                 "outbreak_ctl",
                 "initial_infected_ids",
@@ -467,7 +454,7 @@ def build_abm(
             "scaling_factor_update": None,
             "outbreak_ctl_cfg_update": None,
             "initial_infected_ids_update": None,
-            "use_random_infection_update": None,
+            "use_random_exposed_update": None,
             "learnable_params_scaler_update": None,
         },
     }

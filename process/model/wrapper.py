@@ -1,5 +1,5 @@
-import torch
 from numpy import array as numpy_array
+from pandas import DataFrame
 from torch import Tensor as torch_tensor
 
 from process import DEVICE
@@ -26,12 +26,12 @@ def run_gradabm_wrapper(
     Returns:
         _type_: _description_
     """
-    predictions = []
+    predictions_indices = []
     all_records = []
 
     param_values_all = param_values_all.to(DEVICE)
 
-    pred_t = 0
+    pred = 0
     for time_step in range(training_num_steps):
 
         if OPTIMIZATION_CFG["use_temporal_params"]:
@@ -39,31 +39,34 @@ def run_gradabm_wrapper(
         else:
             param_values = param_values_all
 
-        proc_record, pred_t = abm.step(
+        proc_record, pred, pred_indices = abm.step(
             time_step,
             param_values,
             param_info,
             training_num_steps,
-            pred_t,
+            pred,
             save_records=save_records,
         )
 
-        predictions = pred_t.to(DEVICE)
+        predictions = pred.to(DEVICE)
+        predictions_indices.append(pred_indices)
         all_records.append(proc_record)
 
     predictions = predictions[-1]
 
     if any(item is None for item in all_records):
-        all_records = None
+        output = None
     else:
-        all_records = numpy_array(all_records)
+        output = numpy_array(all_records).T
+        output = DataFrame(output).astype(int)
+        output["area"] = abm.agents_area.tolist()
+        output["ethnicity"] = abm.agents_ethnicity.tolist()
+        output["age"] = abm.agents_age.tolist()
+        output["vaccine"] = abm.agents_vaccine.tolist()
+        output["gender"] = abm.agents_gender.tolist()
 
     return {
         "prediction": predictions,
-        "all_records": all_records,
-        "agents_area": abm.agents_area.tolist(),
-        "agents_ethnicity": abm.agents_ethnicity.tolist(),
-        "agents_age": abm.agents_age.tolist(),
-        "agents_vaccine": abm.agents_vaccine.tolist(),
-        "agents_gender": abm.agents_gender.tolist(),
+        "prediction_indices": predictions_indices,
+        "output": output,
     }

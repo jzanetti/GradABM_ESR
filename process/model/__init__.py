@@ -1,4 +1,4 @@
-USE_RANDOM_INFECTION_DEFAULT = False
+USE_RANDOM_EXPOSED_DEFAULT = True
 
 USE_RNN = False
 
@@ -31,14 +31,14 @@ STAGE_INDEX = {
     "exposed": 2,
     "infected": 4,
     "recovered_or_death": 8,
-    # "death": 5,
+    "infected_target": 999,
 }
-
-REMOVE_WARM_UP_TIMESTEPS = None  # must be a integer or None
 
 SMALL_FIX_VALUE = 1e-9
 
 PRINT_MODEL_INFO = False
+
+PRINT_MODEL_INFO2 = False
 
 PRERUN_CFG = {"params_num": 7, "epochs": 10}
 
@@ -54,10 +54,12 @@ OPTIMIZATION_CFG = {
     "use_loss_scaler": False,
     "initial_loss": 1e10,
     "basic_lr": 0.01,
-    "num_epochs": 500,
+    "num_epochs": 100,
     "clip_grad_norm": 10.0,
     "use_temporal_params": True,
     "adaptive_lr": {"enable": False, "step": 15, "reduction_ratio": 0.9},
+    "scaler": 1.0,
+    "warmup_timestep": 2,
 }
 
 PERTURBATE_FLAG_DEFAULT = None

@@ -2,8 +2,6 @@ from os import makedirs
 from os.path import exists, join
 from pickle import dump as pickle_dump
 
-from process.model import REMOVE_WARM_UP_TIMESTEPS
-
 
 def write_output(output, epoch_loss_list, workdir, ens_id, output_prefix):
     if output_prefix is None:
@@ -34,20 +32,14 @@ def postproc_train(prediction, y) -> dict:
         y (_type_): _description_
     """
     output = {
-        "pred": prediction["prediction"],
-        "all_records": prediction["all_records"],
+        "prediction": prediction["prediction"],
+        "prediction_indices": prediction["prediction_indices"],
+        "output": prediction["output"],
         "y": y[0, :, 0],
         # "all_target_indices": prediction["all_target_indices"],
-        "agents_area": prediction["agents_area"],
-        "agents_ethnicity": prediction["agents_ethnicity"],
+        # "agents_area": prediction["agents_area"],
+        # "agents_ethnicity": prediction["agents_ethnicity"],
     }
-    if REMOVE_WARM_UP_TIMESTEPS is not None:
-        output["pred"] = output["pred"][REMOVE_WARM_UP_TIMESTEPS:]
-
-        if output["all_records"] is not None:
-            output["all_records"] = output["all_records"][REMOVE_WARM_UP_TIMESTEPS:]
-
-        output["y"] = output["y"][REMOVE_WARM_UP_TIMESTEPS:]
 
     return output
 
