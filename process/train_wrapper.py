@@ -3,7 +3,7 @@ from os import makedirs
 from os.path import exists, join
 
 from process.input.test import load_test_data
-from process.model import OPTIMIZATION_CFG, PRINT_MODEL_INFO
+from process.model import OPTIMIZATION_CFG, PRINT_MODEL_INFO2
 from process.model.abm import init_abm
 from process.model.diags import save_outputs
 from process.model.loss_func import loss_optimization
@@ -56,7 +56,7 @@ def load_train_input(
     agents_data_path, interaction_data_path, target_data_path, cfg_path, use_test_data
 ):
     if use_test_data:
-        train_input = load_test_data(large_network=False)
+        train_input = load_test_data(large_network=True)
     else:
         train_input = prep_wrapper(
             agents_data_path, interaction_data_path, target_data_path, cfg_path
@@ -113,12 +113,17 @@ def train(
             param_values_all,
             abm["param_model"].param_info(),
             model_inputs["total_timesteps"],
-            save_records=False,
+            save_records=True,
         )
 
         output = postproc_train(predictions, model_inputs["target"])
 
-        loss = abm["loss_def"]["loss_func"](output["y"], output["pred"])
+        loss = abm["loss_def"]["loss_func"](
+            output["y"][OPTIMIZATION_CFG["warmup_timestep"] :]
+            * OPTIMIZATION_CFG["scaler"],
+            output["prediction"][OPTIMIZATION_CFG["warmup_timestep"] :]
+            * OPTIMIZATION_CFG["scaler"],
+        )
 
         epoch_loss = loss_optimization(
             loss,
@@ -132,14 +137,25 @@ def train(
             f"Loss: {round(epoch_loss, 2)}/{round(smallest_loss, 2)}; "
             f"Lr: {round(abm['loss_def']['opt'].param_groups[0]['lr'], 5)}"
         )
-        print_prediction(output["pred"], output["y"])
 
-        if PRINT_MODEL_INFO:
-            print_params_increments(param_values_list)
+        print_prediction(
+            output["prediction"][OPTIMIZATION_CFG["warmup_timestep"] :],
+            output["y"][OPTIMIZATION_CFG["warmup_timestep"] :],
+        )
+
+        if PRINT_MODEL_INFO2:
+            print_params_increments(
+                param_values_list,
+                abm["param_model"].param_info()["learnable_param_order"],
+            )
 
         if epoch_loss < smallest_loss:
             param_with_smallest_loss = param_values_all
             smallest_loss = epoch_loss
+            all_records = output["output"]
+            pred = output["prediction"]
+            pred_indices = output["prediction_indices"]
+
         epoch_loss_list.append(epoch_loss)
         param_values_list.append(param_values_all)
 
@@ -149,9 +165,12 @@ def train(
         {
             "output_info": {
                 "total_timesteps": model_inputs["total_timesteps"],
-                "target": model_inputs["target"],
+                "truth": output["y"],
+                "pred": pred,
+                "pred_indices": pred_indices,
                 "epoch_loss_list": epoch_loss_list,
                 "param_values_list": param_values_list,
+                "all_records": all_records,
             },
             "all_interactions": model_inputs["all_interactions"],
             "params": {"param_with_smallest_loss": param_with_smallest_loss},

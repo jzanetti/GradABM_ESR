@@ -18,6 +18,7 @@ from torch import log as torch_log
 from torch import long as torch_long
 from torch import manual_seed
 from torch import masked_select as torch_masked_select
+from torch import nonzero as torch_nonzero
 from torch import ones as torch_ones
 from torch import ones_like as torch_ones_like
 from torch import sum as torch_sum
@@ -27,7 +28,7 @@ from torch import zeros as torch_zeros
 from torch import zeros_like as torch_zeros_like
 
 from process import DEVICE
-from process.model import MISSING_DATA, STAGE_INDEX
+from process.model import MISSING_DATA, STAGE_INDEX, TORCH_SEED
 from process.model.utils import apply_gumbel_softmax
 
 
@@ -63,62 +64,23 @@ class Progression_model(DiseaseProgression):
         # SUSCEPTIBLE (0) => EXPOSED (1) => INFECTED (2) => RECOVERED/MORTALITY (3)
         self.num_agents = num_agents
 
-    def add_random_infected(
+    def add_random_exposed(
         self,
-        random_infected_ids,
         random_percentage,
-        infected_to_recovered_time,
         agents_stages,
-        agents_infected_time,
-        agents_next_stage_times,
-        t,
-        # device,
     ):
-        # Add random infected:
-        if random_infected_ids is None:
-            random_infected_p = (random_percentage / 100.0) * torch_ones(
-                (self.num_agents, 1)
-            ).to(DEVICE)
-            random_infected_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
-        else:
-            random_infected_p = torch_zeros((self.num_agents, 1)).to(DEVICE)
-            random_infected_ids_filter = torch_tensor(
-                [i in random_infected_ids[t] for i in range(len(agents_stages))]
-            ).to(DEVICE)
-            random_infected_p[:, 0][
-                (agents_stages == STAGE_INDEX["susceptible"])
-                & (random_infected_ids_filter)
-            ] = 1.0
+        random_exposed_p = random_percentage * torch_ones((self.num_agents, 1)).to(
+            DEVICE
+        )
+        random_exposed_p[:, 0][agents_stages != STAGE_INDEX["susceptible"]] = 0
 
-        p = torch_hstack((random_infected_p, 1 - random_infected_p))
-        cat_logits = torch_log(p + 1e-9)
+        random_exposed_mask = apply_gumbel_softmax(random_exposed_p)
 
-        while True:
+        # random_exposed_mask = (
+        #    agents_stages == STAGE_INDEX["susceptible"]
+        # ) * random_exposed_today
 
-            agents_stages_with_random_infected = F.gumbel_softmax(
-                logits=cat_logits, tau=1, dim=1, hard=True
-            )[:, 0]
-
-            if not numpy_isnan(
-                agents_stages_with_random_infected.cpu().clone().detach().numpy()
-            ).any():
-                break
-
-        agents_stages_with_random_infected *= STAGE_INDEX["infected"]
-        agents_stages = agents_stages + agents_stages_with_random_infected
-
-        # print(t, agents_stages_with_random_infected.tolist().count(2))
-        # Updated infected time:
-        agents_infected_time[
-            agents_stages_with_random_infected == STAGE_INDEX["infected"]
-        ] = t
-
-        # Updated init_agents_next_stage_time:
-        agents_next_stage_times[
-            agents_stages_with_random_infected == STAGE_INDEX["infected"]
-        ] = (t + infected_to_recovered_time)
-
-        return agents_stages, agents_infected_time, agents_next_stage_times
+        return random_exposed_mask
 
     def init_infected_agents(
         self,
@@ -133,7 +95,7 @@ class Progression_model(DiseaseProgression):
             agents_stages[indices] = STAGE_INDEX["infected"]
         else:
             initial_infected_percentage = (
-                initial_infected_percentage / 100
+                initial_infected_percentage  # / 100.0
             ) * torch_ones((self.num_agents, 1)).to(DEVICE)
 
             agents_stages = apply_gumbel_softmax(initial_infected_percentage)
@@ -197,26 +159,37 @@ class Progression_model(DiseaseProgression):
 
         return one_hot_tensor.to(DEVICE)
 
+    def _get_target_indices(self, target_today, total_samples):
+        indices = torch_nonzero(target_today > 0).squeeze()
+
+        if TORCH_SEED is not None:
+            numpy_seed(TORCH_SEED)
+
+        return list(
+            numpy_choice(indices.cpu().numpy(), size=int(total_samples), replace=False)
+        )
+
     def get_target_variables(
         self, vaccine_efficiency_symptom, current_stages, cur_target, t, total_timesteps
     ):
 
         recovered_and_dead_mask = current_stages == STAGE_INDEX["infected"]
-
-        infected_today = (
+        target_today = (
             vaccine_efficiency_symptom
             * current_stages
             * recovered_and_dead_mask
             / STAGE_INDEX["infected"]
         )
-        infected_today = torch_sum(infected_today)
+        target_today_sum = torch_sum(target_today)
+
+        target_indices = self._get_target_indices(target_today, target_today_sum)
 
         cur_target = (
             cur_target
-            + self._generate_one_hot_tensor(t, total_timesteps) * infected_today
+            + self._generate_one_hot_tensor(t, total_timesteps) * target_today_sum
         )
 
-        return cur_target
+        return cur_target, target_indices
 
     def create_stage_mask(self, cur_stage, cur_mask, bias: float = 0.0):
         cur_mask = torch_eq(cur_stage, cur_mask)
@@ -230,125 +203,93 @@ class Progression_model(DiseaseProgression):
     def update_current_stage(
         self,
         newly_exposed_mask,
+        random_exposed_mask,
         current_stages,
         agents_next_stage_times,
         t,
-        new_method: bool = True,
     ):
         """progress disease: move agents to different disease stage"""
+        # ----------------------
+        # Adding susceptible
+        # ----------------------
+        existing_susceptible_mask = (current_stages == STAGE_INDEX["susceptible"]) * (
+            newly_exposed_mask == 0
+        )
+        existing_susceptible = current_stages * existing_susceptible_mask
 
-        if new_method:
-
-            # ----------------------
-            # Adding susceptible
-            # ----------------------
-            existing_susceptible_mask = (
-                current_stages == STAGE_INDEX["susceptible"]
-            ) * (newly_exposed_mask == 0)
-            existing_susceptible = current_stages * existing_susceptible_mask
-
-            # ----------------------
-            # Adding exposed
-            # ----------------------
-            newly_exposed = (
+        # ----------------------
+        # Adding random infected
+        # ----------------------
+        random_exposed = None
+        if random_exposed_mask is not None:
+            random_exposed = (
                 current_stages
-                * newly_exposed_mask
+                * random_exposed_mask
                 * (STAGE_INDEX["exposed"] / STAGE_INDEX["susceptible"])
             )
 
-            existing_exposed_mask = (current_stages == STAGE_INDEX["exposed"]) * (
-                agents_next_stage_times > t
-            )
-            existing_exposed = current_stages * existing_exposed_mask
+        # ----------------------
+        # Adding exposed
+        # ----------------------
+        newly_exposed = (
+            current_stages
+            * newly_exposed_mask
+            * (STAGE_INDEX["exposed"] / STAGE_INDEX["susceptible"])
+        )
 
-            # ----------------------
-            # Adding infected
-            # ----------------------
-            newly_infected_mask = (current_stages == STAGE_INDEX["exposed"]) * (
-                agents_next_stage_times == t
-            )
-            newly_infected = (
-                current_stages
-                * newly_infected_mask
-                * (STAGE_INDEX["infected"] / STAGE_INDEX["exposed"])
-            )
+        existing_exposed_mask = (current_stages == STAGE_INDEX["exposed"]) * (
+            agents_next_stage_times > t
+        )
+        existing_exposed = current_stages * existing_exposed_mask
 
-            existing_infected_mask = (current_stages == STAGE_INDEX["infected"]) * (
-                agents_next_stage_times > t
-            )
-            existing_infected = current_stages * existing_infected_mask
+        # ----------------------
+        # Adding infected
+        # ----------------------
+        newly_infected_mask = (current_stages == STAGE_INDEX["exposed"]) * (
+            agents_next_stage_times == t
+        )
+        newly_infected = (
+            current_stages
+            * newly_infected_mask
+            * (STAGE_INDEX["infected"] / STAGE_INDEX["exposed"])
+        )
 
-            # ----------------------
-            # Adding removed
-            # ----------------------
-            newly_removed_mask = (current_stages == STAGE_INDEX["infected"]) * (
-                agents_next_stage_times == t
-            )
-            newly_removed = (
-                current_stages
-                * newly_removed_mask
-                * (STAGE_INDEX["recovered_or_death"] / STAGE_INDEX["infected"])
-            )
+        existing_infected_mask = (current_stages == STAGE_INDEX["infected"]) * (
+            agents_next_stage_times > t
+        )
+        existing_infected = current_stages * existing_infected_mask
 
-            existing_removed_mask = (
-                current_stages == STAGE_INDEX["recovered_or_death"]
-            ) * (agents_next_stage_times > t)
-            existing_removed = current_stages * existing_removed_mask
+        # ----------------------
+        # Adding removed
+        # ----------------------
+        newly_removed_mask = (current_stages == STAGE_INDEX["infected"]) * (
+            agents_next_stage_times == t
+        )
+        newly_removed = (
+            current_stages
+            * newly_removed_mask
+            * (STAGE_INDEX["recovered_or_death"] / STAGE_INDEX["infected"])
+        )
 
-            # ----------------------
-            # Adding all of them together
-            # ----------------------
-            current_stages = (
-                existing_susceptible
-                + newly_exposed
-                + existing_exposed
-                + newly_infected
-                + existing_infected
-                + newly_removed
-                + existing_removed
-            )
-        else:
+        existing_removed_mask = (
+            current_stages == STAGE_INDEX["recovered_or_death"]
+        ) * (agents_next_stage_times > t)
+        existing_removed = current_stages * existing_removed_mask
 
-            after_exposed = STAGE_INDEX["exposed"] * (
-                t < agents_next_stage_times
-            ) + STAGE_INDEX["infected"] * (t == agents_next_stage_times)
+        # ----------------------
+        # Adding all of them together
+        # ----------------------
+        current_stages = (
+            existing_susceptible
+            + newly_exposed
+            + existing_exposed
+            + newly_infected
+            + existing_infected
+            + newly_removed
+            + existing_removed
+        )
 
-            after_infected = STAGE_INDEX["infected"] * (
-                t < agents_next_stage_times
-            ) + STAGE_INDEX["recovered_or_death"] * (t == agents_next_stage_times)
-
-            stage_progression = (
-                (current_stages == STAGE_INDEX["susceptible"])
-                * STAGE_INDEX["susceptible"]
-                + (current_stages == STAGE_INDEX["recovered_or_death"])
-                * STAGE_INDEX["recovered_or_death"]
-                + (current_stages == STAGE_INDEX["exposed"]) * after_exposed
-                + (current_stages == STAGE_INDEX["infected"]) * after_infected
-            )
-            """
-            from process.model.utils import soft_equals, soft_less_than
-
-            after_exposed = STAGE_INDEX["exposed"] * soft_less_than(
-                t, agents_next_stage_times
-            ) + STAGE_INDEX["infected"] * soft_equals(t, agents_next_stage_times)
-
-            after_infected = STAGE_INDEX["infected"] * soft_less_than(
-                t, agents_next_stage_times
-            ) + STAGE_INDEX["recovered_or_death"] * soft_equals(
-                t, agents_next_stage_times
-            )
-
-            stage_progression = (
-                soft_equals(current_stages, STAGE_INDEX["susceptible"])
-                * STAGE_INDEX["susceptible"]
-                + soft_equals(current_stages, STAGE_INDEX["recovered_or_death"])
-                * STAGE_INDEX["recovered_or_death"]
-                + soft_equals(current_stages, STAGE_INDEX["exposed"]) * after_exposed
-                + soft_equals(current_stages, STAGE_INDEX["infected"]) * after_infected
-            )
-            """
-            current_stages = (
-                newly_exposed_today * STAGE_INDEX["exposed"] + stage_progression
-            )
+        if random_exposed is not None:
+            current_stages += random_exposed
 
         return current_stages

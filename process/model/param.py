@@ -62,7 +62,7 @@ def get_params(learnable_params: dict) -> dict:
             param_max.append(learnable_params[param_name]["max"])
             learnable_params_list.append(
                 learnable_params[param_name]["default"]
-                / learnable_params[param_name]["max"]
+                # / learnable_params[param_name]["max"]
             )
         else:
             learnable_param_default[param_name] = learnable_params[param_name][

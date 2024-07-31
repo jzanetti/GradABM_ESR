@@ -39,26 +39,38 @@ def print_prediction(prd, obs):
     logger.info(f"         * observation: {rounded_numbers2}")
 
 
-def print_params_increments(param_values_list):
-    if len(param_values_list) < 2:
-        return
-    param_values1 = param_values_list[-2]
-    param_values2 = param_values_list[-1]
+def print_params_increments(
+    param_values_list, learnable_param_order, plot_incre: bool = False
+):
 
-    if len(param_values1.shape) == 1:
-        param_values2 = array(param_values2.tolist())
-        param_values1 = array(param_values1.tolist())
+    if plot_incre:
 
-    elif len(param_values1.shape) == 3:
-        param_values1 = array(param_values1.tolist())[0, :, :]
-        param_values2 = array(param_values2.tolist())[0, :, :]
+        if len(param_values_list) < 2:
+            return
+        param_values1 = param_values_list[-2]
+        param_values2 = param_values_list[-1]
 
-        param_values1 = mean(param_values1, 0)
-        param_values2 = mean(param_values2, 0)
+        if len(param_values1.shape) == 1:
+            param_values2 = array(param_values2.tolist())
+            param_values1 = array(param_values1.tolist())
 
-    param_incre = (param_values2 - param_values1) / param_values1
+        elif len(param_values1.shape) == 3:
+            param_values1 = array(param_values1.tolist())[0, :, :]
+            param_values2 = array(param_values2.tolist())[0, :, :]
 
-    logger.info(f"     * increments: {param_incre}")
+            param_values1 = mean(param_values1, 0)
+            param_values2 = mean(param_values2, 0)
+
+        param_incre = (param_values2 - param_values1) / param_values1
+
+        logger.info(f"     * increments: {param_incre}")
+    else:
+        if len(param_values_list) < 1:
+            return
+
+        param_values = [round(i, 4) for i in param_values_list[-1].tolist()]
+        for i, proc_value in enumerate(param_values):
+            logger.info(f"          - {learnable_param_order[i]}: {proc_value}")
 
 
 def setup_logging(

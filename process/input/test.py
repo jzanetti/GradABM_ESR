@@ -112,6 +112,40 @@ def load_test_data(large_network: bool = False) -> dict:
     if large_network:
         with gzip_open("process/input/testdata/measles_dataset.pickle.gz", "rb") as f:
             data = pickle_load(f)
+
+        data["cfg"]["learnable_params"]["vaccine_efficiency_symptom"]["enable"] = True
+        data["cfg"]["learnable_params"]["vaccine_efficiency_symptom"]["default"] = 0.0
+        data["cfg"]["learnable_params"]["vaccine_efficiency_symptom"][
+            "max"
+        ] = 0.1  # 0.1
+        data["cfg"]["learnable_params"]["vaccine_efficiency_symptom"][
+            "min"
+        ] = 0.01  # 0.001
+
+        data["cfg"]["learnable_params"]["vaccine_efficiency_spread"]["enable"] = True
+        data["cfg"]["learnable_params"]["vaccine_efficiency_spread"]["default"] = 0.0
+        data["cfg"]["learnable_params"]["vaccine_efficiency_spread"]["max"] = 0.03
+        data["cfg"]["learnable_params"]["vaccine_efficiency_spread"]["min"] = 0.00001
+
+        data["cfg"]["learnable_params"]["initial_infected_percentage"]["enable"] = True
+        data["cfg"]["learnable_params"]["initial_infected_percentage"]["default"] = 0.0
+        data["cfg"]["learnable_params"]["initial_infected_percentage"]["max"] = 0.01
+        data["cfg"]["learnable_params"]["initial_infected_percentage"]["min"] = 0.00001
+
+        data["cfg"]["learnable_params"]["infection_gamma_scaling_factor"][
+            "enable"
+        ] = True
+        data["cfg"]["learnable_params"]["infection_gamma_scaling_factor"][
+            "default"
+        ] = 0.0
+        data["cfg"]["learnable_params"]["infection_gamma_scaling_factor"]["max"] = 1.0
+        data["cfg"]["learnable_params"]["infection_gamma_scaling_factor"]["min"] = 0.01
+
+        data["cfg"]["learnable_params"]["random_infected_percentage"]["enable"] = True
+        data["cfg"]["learnable_params"]["random_infected_percentage"]["default"] = 0.0
+        data["cfg"]["learnable_params"]["random_infected_percentage"]["max"] = 0.001
+        data["cfg"]["learnable_params"]["random_infected_percentage"]["min"] = 0.00001
+
         return data
     else:
 

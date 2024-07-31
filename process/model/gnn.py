@@ -118,8 +118,8 @@ def lam(
         )
 
     res = (
-
         scaling_factor_vaccine
+        # vaccine_efficiency_spread
         * scaling_factor_age_gender_ethnicity
         * scaling_factor_symptom
         * scaling_factor_infection_time
