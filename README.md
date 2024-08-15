@@ -7,9 +7,22 @@ _Agent Based Models (ABMs) have emerged as a powerful tool for investigating com
 
 Note that this approach is taking from the concept of [AgentTorch](https://github.com/AgentTorch/AgentTorch).
 
-As an example, the model is setup for investigating the measles transmission in our community:
+A simple example is shown below about _how the prediction and truth fit over iterations, and how the unknown characteristics are learned during backpropagation._
 
-<img src="etc/gradabm_illustration.PNG" alt="GradABM" width="75%" height="75%">
+<p align="center" style="margin-bottom:0">
+    <img src="etc/wiki/gradabm_ESR.gif" alt="My GIF" width="700">
+</p>
+
+The following example illustrates _how a hypothetical measles outbreak in Silverstream, Upper Hutt, could impact the revenue of the local hospitality sector._
+
+<p align="center" style="margin-bottom:0">
+    <img src="etc/wiki/income_change_rate.gif?raw=true" alt="Sample Image" width="50%">
+</p>
+<p align="center" style="margin-top:0">
+    <img src="etc/wiki/spread_map.gif?raw=true" alt="Sample Image" width="37.5%">
+    <img src="etc/wiki/infection_1_state2_src.png?raw=true" alt="Sample Image" width="38.5%">
+</p>
+
 
 **The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
 
@@ -54,6 +67,6 @@ for epi in range(abm["num_epochs"]):
 
 ```
 
-![My GIF](etc/gradabm_ESR.gif)
+![My GIF](etc/wiki/gradabm_ESR.gif)
 
 
