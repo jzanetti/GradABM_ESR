@@ -32,7 +32,7 @@ The following example illustrates _how a hypothetical measles outbreak in Silver
 _Another example is about how the road maintenance would affect the roadside businesses in Upper Hutt._
 
 <p align="center" style="margin-bottom:0">
-    <img src="etc/wiki/sumo_upper_hutt2.gif?raw=true" alt="Sample Image" width="50%">
+    <img src="etc/wiki/sumo_upper_hutt_all.gif?raw=true" alt="Sample Image" width="30%">
 </p>
 
 
