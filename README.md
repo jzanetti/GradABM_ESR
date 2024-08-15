@@ -29,6 +29,12 @@ The following example illustrates _how a hypothetical measles outbreak in Silver
     <img src="etc/wiki/infection_1_state2_src.png?raw=true" alt="Sample Image" width="38.5%">
 </p>
 
+_Another example is about how the road maintenance would affect the roadside businesses in Upper Hutt._
+
+<p align="center" style="margin-bottom:0">
+    <img src="etc/wiki/sumo_upper_hutt_all.gif?raw=true" alt="Sample Image" width="50%">
+</p>
+
 
 ## 🛠️ A simple implementation
 
