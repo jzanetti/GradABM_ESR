@@ -7,6 +7,12 @@ _Agent Based Models (ABMs) have emerged as a powerful tool for investigating com
 
 Note that this approach is taking from the concept of [AgentTorch](https://github.com/AgentTorch/AgentTorch).
 
+## 📞 **Contact**
+
+Contact: sijin.zhang@esr.cri.nz, _Senior Data Scientist at ESR_
+
+## 🌟 **Example**
+
 A simple example is shown below about _how the prediction and truth fit over iterations, and how the unknown characteristics are learned during backpropagation._
 
 <p align="center" style="margin-bottom:0">
@@ -25,8 +31,6 @@ The following example illustrates _how a hypothetical measles outbreak in Silver
 
 
 **The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
-
-Contact: sijin.zhang@esr.cri.nz
 
 A simple implementation
 ==================
