@@ -30,10 +30,9 @@ The following example illustrates _how a hypothetical measles outbreak in Silver
 </p>
 
 
-**The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
+## 🛠️ A simple implementation
 
-A simple implementation
-==================
+**The documentation for installing and using the package can be obtained at [here](https://june-nz.readthedocs.io/en/latest/DiffABM.html)**
 
 The following codes give a simple workflow (with the provided test data) on how to train the GradABM model:
 
@@ -70,7 +69,5 @@ for epi in range(abm["num_epochs"]):
     )
 
 ```
-
-![My GIF](etc/wiki/gradabm_ESR.gif)
 
 
