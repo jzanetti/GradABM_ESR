@@ -26,19 +26,19 @@ vis_cfg_path = "etc/tests/papers/Manukau/cfg/vis.yml"
 """
 
 input_data = {
-    "diary_path": "etc/tests/Auckland_2019_measles/raw_input_v1.0/Auckland/diaries.parquet",
-    "synpop_path": "etc/tests/Auckland_2019_measles/raw_input_v1.0/Auckland/syspop_base.parquet",
-    "target_data": "etc/tests/Auckland_2019_measles/raw_input_v1.0/Auckland/measles_cases_2019.parquet",
+    "diary_path": "etc/tests/test_data/Auckland/diaries.parquet",
+    "synpop_path": "etc/tests/test_data/Auckland/syspop_base.parquet",
+    "target_data": "etc/tests/test_data/Auckland/measles_cases_2019.parquet",
     "target_index_range": {"start": 25, "end": 51},
-    "sa2_dhb_map_path": "etc/tests/Auckland_2019_measles/raw_input_v1.0/Auckland/dhb_and_sa2.parquet",
+    "sa2_dhb_map_path": "etc/tests/test_data/Auckland/dhb_and_sa2.parquet",
     "dhb_list": [
         "Auckland"
     ],  # Counties Manukau, Auckland, Capital and Coast, Canterbury
 }
 
-input_cfg_path = "etc/tests/Auckland_2019_measles/cfg/input.yml"
-model_cfg_path = "etc/tests/Auckland_2019_measles/cfg/model.yml"
-vis_cfg_path = "etc/tests/papers/Manukau/cfg/vis.yml"
+input_cfg_path = "etc/tests/test_data/input.yml"
+model_cfg_path = "etc/tests/test_data/model.yml"
+vis_cfg_path = "etc/tests/test_data/vis.yml"
 
 run_input = False
 run_train = True

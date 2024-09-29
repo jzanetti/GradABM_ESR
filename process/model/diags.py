@@ -22,7 +22,7 @@ from matplotlib.pyplot import (
     yscale,
 )
 from numpy import (
-    NaN,
+    nan,
     array,
     bincount,
     count_nonzero,
@@ -257,7 +257,7 @@ def plot_diags(
                 )
                 sa2.loc[mask, "agents_occurrences"] = 1.0
 
-                sa2.loc[sa2["agents_occurrences"] == 0.0, "agents_occurrences"] = NaN
+                sa2.loc[sa2["agents_occurrences"] == 0.0, "agents_occurrences"] = nan
 
                 if vis_cfg["agents_map"]["pop_based_interpolation"]["enable"]:
                     sa2["representative_point"] = sa2.representative_point()

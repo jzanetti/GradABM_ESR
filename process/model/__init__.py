@@ -54,7 +54,7 @@ OPTIMIZATION_CFG = {
     "use_loss_scaler": False,
     "initial_loss": 1e10,
     "basic_lr": 0.01,
-    "num_epochs": 100,
+    "num_epochs": 15,
     "clip_grad_norm": 10.0,
     "use_temporal_params": True,
     "adaptive_lr": {"enable": False, "step": 15, "reduction_ratio": 0.9},

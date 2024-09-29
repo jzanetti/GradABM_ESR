@@ -41,8 +41,8 @@ def get_diary_data(syn_data_path: str, diary_data_path: str) -> DataFrame:
         proc_key_to_map = proc_key
         if proc_key == "travel":
             proc_key_to_map = "public_transport_trip"
-        if proc_key == "restaurant":
-            proc_key_to_map = "restauraunt"
+        #if proc_key == "restaurant":
+        #    proc_key_to_map = "restauraunt"
 
         merged_df.loc[merged_df["spec"] == proc_key, "group"] = merged_df[
             proc_key_to_map
