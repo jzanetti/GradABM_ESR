@@ -136,8 +136,9 @@ def plot_diags(
     if not exists(workdir):
         makedirs(workdir)
 
+    """
     for i, output in enumerate(outputs):
-        my_pred = output["pred"].tolist()
+        # my_pred = output["pred"].tolist()
 
         # ----------------------------
         # Plot agents
@@ -174,10 +175,11 @@ def plot_diags(
     tight_layout()
     savefig(join(workdir, "Agents.png"), bbox_inches="tight")
     close()
-
+    """
     # ----------------------------
     # Plot agents map
     # ----------------------------
+    """
     if vis_cfg["agents_map"]["enable"]:
         tmp_dir = join(workdir, "tmp")
         if not exists(tmp_dir):
@@ -365,7 +367,8 @@ def plot_diags(
             )
         else:
             logger.info("Not able to get agents on the map to create gif")
-
+    """
+    """
     # ----------------------------
     # Plot losses
     # ----------------------------
@@ -384,14 +387,14 @@ def plot_diags(
     tight_layout()
     savefig(join(workdir, "loss.png"), bbox_inches="tight")
     close()
-
+    """
     # ----------------------------
     # Plot Prediction/Truth
     # ----------------------------
     all_preds = []
     _, ax = subplots()
     for i, output in enumerate(outputs):
-        my_pred = output["pred"].tolist()
+        my_pred = output["prediction"].tolist()
         if i == 0 and plot_obs:
             my_targ = output["obs"].tolist()
             plot(my_targ, color="k", linewidth=2.0, label="Observed cases")
@@ -441,7 +444,7 @@ def plot_diags(
         title(vis_cfg["pred"]["title_str"])
     else:
         title(
-            f"JUNE-NZ validation {vis_cfg['name']} \n Simulation: {int(sum(my_pred))} vs Observed: {int(sum(my_targ))}"
+            f"Validation {vis_cfg['name']} \n Simulation: {int(sum(my_pred))} vs Observed: {int(sum(my_targ))}"
         )
     xlabel(f"{vis_cfg['temporal_res']}")
     ylabel("Number of cases")

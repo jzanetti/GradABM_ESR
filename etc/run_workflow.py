@@ -40,9 +40,9 @@ input_cfg_path = "etc/tests/test_data/input.yml"
 model_cfg_path = "etc/tests/test_data/model.yml"
 vis_cfg_path = "etc/tests/test_data/vis.yml"
 
-run_input = False
+run_input = True
 run_train = True
-run_predict = False
+run_predict = True
 run_vis = False
 
 workdir = "etc/tests/debug/Auckland"

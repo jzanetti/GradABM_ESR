@@ -7,7 +7,7 @@ from pandas import read_parquet as pandas_read_parquet
 
 from process.model.abm import build_abm
 from process.model.diags import load_outputs
-from process.model.postp import postproc_pred, write_output
+from process.model.postp import postproc_pred, write_output, postproc_train
 from process.model.prep import get_all_pred_pahts, prep_model_inputs
 from process.model.wrapper import run_gradabm_wrapper
 from process.utils.utils import read_cfg, setup_logging

@@ -33,5 +33,7 @@ def vis_wrapper(workdir: str, cfg: str):
         cfg["vis"],
         cfg["timestep_cfg"],
         apply_log_for_loss=False,
-        plot_obs=False,
+        plot_obs=True,
     )
+
+    
